@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <!-- 注意：不要加 no-cache 类的 meta，缓存决策交给 Service Worker -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="微光农庄" />
+  <meta name="theme-color" content="#1a2218" />
+  <title>微光农庄 Vale Farm</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="icons/favicon-32.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
+  <!-- iOS 启动图：media 必须同时写 CSS 尺寸与 dpr，否则同尺寸 2x/3x 机器抢图 -->
+  <link rel="apple-touch-startup-image" href="splash/splash-iphone-se-750x1334.png"
+        media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" />
+  <link rel="apple-touch-startup-image" href="splash/splash-iphone-x-1125x2436.png"
+        media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
+  <link rel="apple-touch-startup-image" href="splash/splash-iphone13-1170x2532.png"
+        media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
+  <link rel="apple-touch-startup-image" href="splash/splash-iphone15pro-1179x2556.png"
+        media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" />
+  <link rel="apple-touch-startup-image" href="splash/splash-iphone15promax-1290x2796.png"
+        media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" />
+  <link rel="apple-touch-startup-image" href="splash/splash-ipad-1536x2048.png"
+        media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" />
+  <style>
+    /* iOS 上 height:100% 取的是 layout viewport，地址栏收放 / translucent 状态栏会让它
+       和真实可视区差一截，底部露一条背景色（用户实拍就是那条黑带）。
+       优先级：JS 实测 --app-h > dvh > 100%。JS 那份最准，写不到就退回 dvh。 */
+    html, body {
+      margin: 0; padding: 0;
+      height: 100%;
+      height: 100dvh;
+      background: #1a2218; overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+      overscroll-behavior: none;
+    }
+    html, body { height: var(--app-h, 100dvh); }
+    /* 画布永远铺满：Phaser 用 Scale.NONE，尺寸由这里撑开（不能留黑边）。
+       注意**不能再给 padding**（以前写过 padding-bottom: env(safe-area-inset-bottom)）：
+       那样画布会被顶小 34px，可 Phaser 仍按视口尺寸当内部分辨率 → CSS 纵向拉伸，
+       像素变模糊、触摸坐标整体偏移。安全区改由画布内部处理（见 src/layout.ts）。 */
+    #game {
+      width: 100%; height: 100%; overflow: hidden;
+      /* 兜底色与 Phaser backgroundColor 一致：万一 setGameSize 比 CSS 慢一帧，
+         露出来的是同色而不是黑（build 17 截图里那条 rgb(8,8,8) 就是这么来的）。 */
+      background: #1a2218;
+    }
+    #game canvas {
+      touch-action: none;
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+      margin: 0 !important;
+    }
+    /* 竖屏兜底层：任何机型都能用，副作用最小。
+       注意用 flex 垂直居中，且整层吞掉触摸事件（pointer-events: auto），
+       否则竖屏时下面的 Phaser 画布还在接收被压扁的坐标。 */
+    /* 竖屏提示：**不再挡住整屏**，只在屏幕中央浮一张卡片。
+       pointer-events: none 让卡片以外的地方照常点得到游戏 —— 这是"竖屏也能玩"的关键。
+       居中而不是贴顶：贴顶会被灵动岛 / 刘海吃掉一半，按钮也点不到（0.4.1 实拍）。 */
+    #rotate-tip {
+      display: none; position: fixed; inset: 0; z-index: 9999;
+      align-items: center; justify-content: center;
+      pointer-events: none; touch-action: none;
+      padding: 0 12px;
+    }
+    #rotate-card {
+      pointer-events: auto;
+      background: #1a2218f2; color: #e8e4dc; border: 1px solid #3a3327;
+      border-radius: 14px; padding: 14px 16px 12px; max-width: 340px; width: 100%;
+      text-align: center; line-height: 1.7; font-size: 14px;
+      box-shadow: 0 6px 24px #0008;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    #rotate-tip .phone {
+      width: 34px; height: 54px; border: 3px solid #c9a06b; border-radius: 8px;
+      margin-bottom: 8px; position: relative;
+      animation: tilt 2.4s ease-in-out infinite;
+    }
+    #rotate-tip .phone::after {
+      content: ''; position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%);
+      width: 12px; height: 2px; border-radius: 2px; background: #c9a06b; opacity: .7;
+    }
+    @keyframes tilt {
+      0%, 40% { transform: rotate(0deg); }
+      60%, 100% { transform: rotate(-90deg); }
+    }
+    #rotate-tip h2 { font-size: 17px; margin: 0 0 2px; color: #f2e06a; font-weight: 600; }
+    #rotate-tip .lead { margin: 0 0 6px; color: #a8a294; font-size: 12px; }
+    .rotate-btn {
+      display: inline-block; border: 0; cursor: pointer; margin-top: 8px;
+      background: #3f7d5a; color: #fff; font-size: 15px; font-family: inherit;
+      padding: 10px 26px; border-radius: 22px; min-width: 132px; min-height: 42px;
+      box-shadow: 0 3px 0 #2c5a40; -webkit-appearance: none;
+    }
+    .rotate-btn.ghost { background: #3a3227; box-shadow: 0 3px 0 #241f18; }
+    .rotate-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #2c5a40; }
+    /* 横过来之后卡片要缩，别占住整个视野 */
+    @media (max-height: 520px) {
+      #rotate-card { max-width: 300px; padding: 10px 14px; }
+      #rotate-tip .phone { width: 24px; height: 38px; margin-bottom: 4px; }
+      #rotate-tip h2 { font-size: 14px; }
+      #rotate-tip .lead { display: none; }
+      .rotate-btn { padding: 7px 18px; font-size: 13px; min-height: 34px; min-width: 104px; }
+    }
+    #rotate-howto {
+      display: none; margin: 6px 0 0; padding: 8px 10px; width: 100%;
+      border: 1px solid #3a3327; border-radius: 8px; background: #20281d;
+      color: #b9b3a5; font-size: 12px; line-height: 1.6; text-align: left;
+    }
+    #rotate-howto b { color: #e8e4dc; }
+    #rotate-howto ol { margin: 4px 0 0; padding-left: 16px; }
+    .rotate-link {
+      display: none; margin-top: 4px; border: 0; background: transparent;
+      color: #8c8779; font-family: inherit; font-size: 12px; padding: 6px 8px;
+      text-decoration: underline; text-underline-offset: 3px; -webkit-appearance: none;
+    }
+    /* 已装成 PWA：横竖由系统决定，不再摆"横屏全屏"按钮 */
+    #rotate-tip.standalone #rotate-start { display: none; }
+    @media (prefers-reduced-motion: reduce) {
+      #rotate-tip .phone { animation: none; }
+    }
+    /* 底部安全区**不要**用 padding 挤 #game（会让画布与内部分辨率对不上而被拉伸）。
+       画布内部已经把底部按钮抬到 Home 指示条之上，这里只兜住非游戏元素。
+       iOS PWA 独立模式的 env() 失效问题在 JS 侧处理（见 src/layout.ts 的
+       currentSafeInsets：env() 全 0 且为 iOS 独立窗口时用经验值兜底）。 */
+  </style>
+  <script type="module" crossorigin src="./assets/index-C9rDwAss.js"></script>
+</head>
+<body>
+  <div id="game"></div>
+  <!-- 竖屏兜底层：不靠任何 API，装不了的机型也能用。点按钮会在手势里尝试全屏 + 锁横屏 -->
+  <!-- 竖屏提示（不再拦截）：竖屏本身就能玩，这里只是一条可关掉的建议条 -->
+  <div id="rotate-tip" aria-hidden="true">
+    <div id="rotate-card" role="dialog" aria-label="提示">
+      <div class="phone"></div>
+      <h2>竖屏也能玩</h2>
+      <p class="lead">横过手机视野更宽、摇杆更好按</p>
+      <p id="rotate-howto"></p>
+      <button id="rotate-start" class="rotate-btn" type="button">横屏全屏</button>
+      <button id="rotate-continue" class="rotate-btn ghost" type="button">就这么玩</button>
+      <button id="rotate-install" class="rotate-link" type="button">添加到主屏后固定横屏</button>
+      <button id="rotate-install-help" class="rotate-link" type="button">添加到主屏幕的方法</button>
+    </div>
+  </div>
+</body>
+</html>

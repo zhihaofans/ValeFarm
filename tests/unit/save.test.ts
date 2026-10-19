@@ -1,0 +1,140 @@
+// 存档层回归 —— 这是本项目「静默丢档」的头号防线：
+// 1) 脏数据 normalize 后不会炸、字段全部回落正确值
+// 2) 写入 → 反序列化 → 每个登记字段（含嵌套）都还在
+// 3) 老格式档能迁移（未来 SAVE_FMT 提升后在这里加用例）
+// 4) 导出文件能原样导入
+
+import { describe, expect, it } from 'vitest';
+import {
+  deserialize, exportSave, importSave, normalizeWorld, serialize,
+} from '../../src/core/save';
+import { createWorld } from '../../src/core/world';
+import { FARM_W } from '../../src/core/config';
+
+describe('存档 normalize', () => {
+  it('空档/垃圾输入回落到可用的新世界，不抛异常', () => {
+    for (const bad of [null, undefined, 123, 'garbage', { fmt: 'x', day: 'abc' }]) {
+      const w = normalizeWorld(bad);
+      expect(w.day).toBeGreaterThanOrEqual(1);
+      expect(w.plots.length).toBe(120);
+    }
+  });
+
+  it('新游戏档必须带上初始种子背包（e2e 抓出过的回归：normalize 丢初始背包）', () => {
+    const w = normalizeWorld(null);
+    expect(w.inventory['seed:radish']).toBe(6);
+  });
+
+  it('逐字段往返：每个登记字段（含嵌套）都必须一致', () => {
+    const w = createWorld();
+    // 造一个"满"的世界：所有字段都填上非默认值
+    w.day = 42;
+    w.minute = 777;
+    w.gold = 9876;
+    w.energy = 55;
+    w.maxEnergy = 120;
+    w.season = 2;
+    w.weather = 'rain';
+    w.toolCan = 2;
+    w.toolHoe = 2;
+    w.playerX = 10;
+    w.playerY = 11;
+    w.facing = 'up';
+    w.collapsedLastNight = true;
+    w.inventory = { 'seed:corn': 3, 'crop:pea:gold': 5, 'tool:can2': 1 };
+    w.npcs.mira = { friendship: 321, giftedToday: true, talkedToday: false, reward100: true, reward300: false };
+    w.stats = { earned: 1111, harvested: 22, collapsedCount: 2 };
+    w.plots[5] = { state: 'watered', crop: { type: 'corn', stage: 2, progress: 1, dryDays: 3, wateredToday: true, withered: false }, obstacle: null };
+    w.plots[6] = { state: 'wild', crop: null, obstacle: 'stump' };
+
+    const back = deserialize(serialize(w))!;
+    // 顶层标量
+    expect(back.day).toBe(42);
+    expect(back.minute).toBe(777);
+    expect(back.gold).toBe(9876);
+    expect(back.energy).toBe(55);
+    expect(back.maxEnergy).toBe(120);
+    expect(back.season).toBe(2);
+    expect(back.weather).toBe('rain');
+    expect(back.toolCan).toBe(2);
+    expect(back.toolHoe).toBe(2);
+    expect(back.playerX).toBe(10);
+    expect(back.playerY).toBe(11);
+    expect(back.facing).toBe('up');
+    expect(back.collapsedLastNight).toBe(true);
+    // 背包（多键）
+    expect(back.inventory['seed:corn']).toBe(3);
+    expect(back.inventory['crop:pea:gold']).toBe(5);
+    // NPC 嵌套字段 —— 只断言顶层会漏掉子字段
+    expect(back.npcs.mira.friendship).toBe(321);
+    expect(back.npcs.mira.giftedToday).toBe(true);
+    expect(back.npcs.mira.reward100).toBe(true);
+    // stats 子字段
+    expect(back.stats.earned).toBe(1111);
+    expect(back.stats.harvested).toBe(22);
+    expect(back.stats.collapsedCount).toBe(2);
+    // 地块嵌套：state / crop 全部子字段 / obstacle
+    expect(back.plots[5].state).toBe('watered');
+    expect(back.plots[5].crop!.type).toBe('corn');
+    expect(back.plots[5].crop!.stage).toBe(2);
+    expect(back.plots[5].crop!.progress).toBe(1);
+    expect(back.plots[5].crop!.dryDays).toBe(3);
+    expect(back.plots[5].crop!.wateredToday).toBe(true);
+    expect(back.plots[5].crop!.withered).toBe(false);
+    expect(back.plots[6].obstacle).toBe('stump');
+  });
+
+  it('脏值不穿透：越界数字/非法枚举回落默认值', () => {
+    const w = normalizeWorld({
+      day: -5, minute: 99999, gold: Infinity, energy: NaN,
+      weather: 'typhoon', facing: 'sideways', toolCan: 9,
+      inventory: { 'seed:hack': 5, 'crop:radish:gold': -3, 'crop:corn:sil': 2 },
+      plots: [{ state: 'lava', crop: { type: 'dragon' }, obstacle: 'ufo' }],
+    });
+    expect(w.day).toBe(1);
+    expect(w.minute).toBe(360); // 越界分钟回落起床时间
+    expect(w.gold).toBe(150);   // Infinity 视为缺失，回落初始金币
+    expect(w.gold).toBe(150);
+    expect(w.energy).toBe(100);
+    expect(w.weather).toBe('sun');
+    expect(w.facing).toBe('down');
+    expect(w.toolCan).toBe(1);
+    expect(w.inventory).toEqual({ 'crop:corn:sil': 2 });
+    expect(w.plots[0].state).toBe('wild');
+    expect(w.plots[0].crop).toBeNull();
+    expect(w.plots[0].obstacle).toBeNull();
+    expect(w.plots.length).toBe(FARM_W * 10);
+  });
+
+  it('plots 截断/缺失时补齐，不崩溃', () => {
+    const w = normalizeWorld({ plots: [] });
+    expect(w.plots.length).toBe(120);
+  });
+
+  it('非法存档 JSON 返回 null（不白屏）', () => {
+    expect(deserialize('{not json')).toBeNull();
+    expect(importSave('nonsense')).toBeNull();
+  });
+});
+
+describe('导出 / 导入', () => {
+  it('导出文件头部带版本与时间，可原样导入还原', () => {
+    const w = createWorld();
+    w.day = 9;
+    w.gold = 1234;
+    w.inventory['crop:pumpkin:sil'] = 4;
+    const text = exportSave(w);
+    expect(JSON.parse(text).app).toBe('vale-farm');
+    const back = importSave(text)!;
+    expect(back.day).toBe(9);
+    expect(back.gold).toBe(1234);
+    expect(back.inventory['crop:pumpkin:sil']).toBe(4);
+  });
+
+  it('导入裸 World（旧版手工备份）也能识别', () => {
+    const w = createWorld();
+    w.day = 3;
+    const back = importSave(JSON.stringify(w))!;
+    expect(back.day).toBe(3);
+  });
+});

@@ -1,0 +1,28 @@
+{
+  "name": "vale-farm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "微光农庄 Vale Farm —— 纯前端手机横屏 2D 像素农场生活模拟",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && node tools/build.mjs",
+    "preview": "vite preview --port 4173",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "assets": "python3 tools/gen_assets.py",
+    "stamp": "node tools/stamp.js",
+    "package": "node tools/package.mjs"
+  },
+  "dependencies": {
+    "phaser": "^3.80.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}

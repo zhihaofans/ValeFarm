@@ -1,0 +1,28 @@
+// 由 tools/gen_assets.py 生成 —— 请勿手改。
+
+export const UI = {
+  coin: 0,
+  energy: 1,
+  water: 2,
+  hoe: 3,
+  seed: 4,
+  calendar: 5,
+  star_silver: 6,
+  star_gold: 7,
+  gift: 8,
+  heart: 9,
+  sun: 10,
+  rain: 11,
+  snow: 12,
+  leaf: 13,
+  sprout: 14,
+  clock: 15,
+  basket: 16,
+  hoe_up: 17,
+  can: 18,
+  radish: 19,
+  pea: 20,
+  corn: 21,
+  pumpkin: 22,
+  withered: 23,
+} as const;

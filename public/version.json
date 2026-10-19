@@ -1,0 +1,5 @@
+{
+  "ver": "0.4.2",
+  "build": "19",
+  "note": "构建产物改到 docs/：源码与可部署文件同仓，GitHub Pages 直接把 /docs 设为发布源；新增 tools/build.mjs 精细清理（保护 GAME_DESIGN.md）、tools/package.mjs 单包发布、public/.nojekyll"
+}

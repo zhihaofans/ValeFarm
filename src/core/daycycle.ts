@@ -1,0 +1,104 @@
+// 日循环：睡觉结算 —— 作物推进、过季枯萎、天气、季节、体力恢复。
+// 纯函数，与渲染完全解耦。
+
+import {
+  COLLAPSE_GOLD_PENALTY, COLLAPSE_NEXT_DAY_ENERGY_RATIO,
+  DAY_START_MINUTE, RAIN_CHANCE, SEASON_DAYS,
+} from './config';
+import { CROPS } from './data';
+import type { CropState, Plot, World } from './types';
+
+export interface DayReport {
+  day: number;
+  seasonChanged: boolean;
+  withered: number;
+  rain: boolean;
+  collapsed: boolean;
+  lines: string[];
+}
+
+/** 一晚过去：推进所有作物。当天浇过水的推进一阶段；没浇的缺水计数并停滞。 */
+export function advanceCrops(w: World): number {
+  let withered = 0;
+  for (const p of w.plots) {
+    // 浇湿的地块过一夜就干透，第二天才能再浇
+    if (p.state === 'watered') p.state = 'tilled';
+    if (!p.crop) continue;
+    const c: CropState = p.crop;
+    if (c.wateredToday && c.stage < 3) {
+      const need = CROPS[c.type].stageThresholds[c.stage];
+      c.progress += 1;
+      if (c.progress >= need) {
+        c.stage += 1;
+        c.progress = 0;
+      }
+    } else if (!c.wateredToday) {
+      c.dryDays += 1;
+    }
+    c.wateredToday = false;
+
+    // 过季枯萎：作物不在当前季节的可种列表 → 枯萎
+    if (!CROPS[c.type].seasons.includes(w.season)) {
+      if (c.stage < 3) {
+        p.crop = makeWithered(c);
+        withered += 1;
+      }
+    }
+  }
+  return withered;
+}
+
+function makeWithered(c: CropState): Plot['crop'] {
+  return { type: c.type, stage: c.stage, progress: 0, dryDays: c.dryDays, wateredToday: false, withered: true };
+}
+
+/** 雨天：所有已开垦地块自动湿润 */
+export function applyRain(w: World): void {
+  for (const p of w.plots) {
+    if (p.state === 'tilled') p.state = 'watered';
+    if (p.crop) p.crop.wateredToday = true;
+  }
+}
+
+/**
+ * 睡觉（或昏倒）→ 结算并进入新的一天。
+ * collapsed=true 表示昏倒：体力减半、罚金币，作物照常推进。
+ */
+export function endDay(w: World, collapsed: boolean): DayReport {
+  const prevSeason = w.season;
+  const withered = advanceCrops(w);
+
+  w.day += 1;
+  w.season = (Math.floor((w.day - 1) / SEASON_DAYS) % 4) as World['season'];
+  const seasonChanged = w.season !== prevSeason;
+
+  // 天气：雨天补水
+  w.weather = Math.random() < RAIN_CHANCE ? 'rain' : 'sun';
+
+  // 体力与金币
+  if (collapsed) {
+    w.energy = Math.max(1, Math.floor(w.maxEnergy * COLLAPSE_NEXT_DAY_ENERGY_RATIO));
+    w.gold = Math.max(0, w.gold - COLLAPSE_GOLD_PENALTY);
+    w.stats.collapsedCount += 1;
+  } else {
+    w.energy = w.maxEnergy;
+  }
+  w.collapsedLastNight = collapsed;
+
+  // 每日 NPC 标记重置
+  for (const id of Object.keys(w.npcs)) {
+    w.npcs[id].giftedToday = false;
+    w.npcs[id].talkedToday = false;
+  }
+
+  if (w.weather === 'rain') applyRain(w);
+
+  w.minute = DAY_START_MINUTE;
+
+  const lines: string[] = [];
+  if (collapsed) lines.push(`你体力透支昏倒了…体力恢复到一半，还丢了 ${COLLAPSE_GOLD_PENALTY} 金币。`);
+  if (withered > 0) lines.push(`${withered} 株作物枯萎了。`);
+  if (seasonChanged) lines.push('新的季节开始了！商店上了新种子。');
+  lines.push(w.weather === 'rain' ? '今天下雨，作物会自动补水。' : '今天是个晴天。');
+  return { day: w.day, seasonChanged, withered, rain: w.weather === 'rain', collapsed, lines };
+}

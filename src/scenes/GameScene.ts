@@ -1,0 +1,671 @@
+// 主场景：地图渲染、玩家移动、农田交互、日循环驱动。
+// 表现层只调用 core 的纯逻辑函数 —— 状态机/经济/结算都在 core 里可单测。
+
+import Phaser from 'phaser';
+import {
+  FARM_H, FARM_OX, FARM_OY, FARM_W,
+  MAP_H, MAP_W, TILE_PX,
+  MS_PER_GAME_MINUTE, FORCE_SLEEP_MINUTE,
+  SHOP_OPEN_MINUTE, SHOP_CLOSE_MINUTE,
+} from '../core/config';
+import { CROP_ORDER, DIR_ROW, NPCS } from '../core/data';
+import { currentSafeInsets, contentInsets, gameZoom } from '../layout';
+import {
+  doClear, doHarvest, doHoe, doPlant, doWater,
+} from '../core/actions';
+import { endDay } from '../core/daycycle';
+import { seasonSeeds } from '../core/economy';
+import { serialize } from '../core/save';
+import { writeSaveJson } from '../core/storage';
+import { SFX, unlockAudio } from '../core/audio';
+import { TILE } from '../core/generated/tiles.frames';
+import {
+  farmCoord, inMap, plotAt, seasonOf, dayOfSeason,
+} from '../core/world';
+import type { CropId, Facing, World } from '../core/types';
+import type { UIScene } from './UIScene';
+
+const SPEED = 110; // px/s
+
+export class GameScene extends Phaser.Scene {
+  world!: World;
+  timePaused = false;
+
+  private groundSprites: Phaser.GameObjects.Image[] = [];
+  private plotSprites: Phaser.GameObjects.Image[] = [];
+  private activeCrops = new Map<number, Phaser.GameObjects.Sprite>();
+  private cropFree: Phaser.GameObjects.Sprite[] = [];
+  private player!: Phaser.GameObjects.Sprite;
+  private npcSprites = new Map<string, Phaser.GameObjects.Sprite>();
+  private facingCursor!: Phaser.GameObjects.Rectangle;
+  private nightOverlay!: Phaser.GameObjects.Rectangle;
+  private rainDrops: Phaser.GameObjects.Rectangle[] = [];
+  private minuteAcc = 0;
+  private autoSaveAcc = 0;
+  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+  private keyAct!: Phaser.Input.Keyboard.Key;
+  private busy = false;
+
+  constructor() {
+    super('game');
+  }
+
+  create(data: { world: World }): void {
+    this.world = data.world;
+    this.buildMap();
+    this.buildActors();
+    this.buildFx();
+    this.refreshAllPlots();
+    this.applyWeather();
+
+    this.applyCameraZoom();
+    this.applyCameraBounds();
+    // 安全区（灵动岛 / Home 指示条）可能晚于首帧才生效，逐帧校准一次（内部幂等）
+    this.time.addEvent({ delay: 250, loop: true, callback: () => this.syncSafeViewport() });
+    // 一屏能看到多少 world 单位：e2e / 调试用，也是"地块是否方"的唯一判据
+    window.__valeView = this.viewSize();
+    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+    // 转屏/地址栏收缩：画布尺寸变了，zoom 与取景范围都要重算，否则世界会被非等比拉伸
+    this.scale.on('resize', () => { this.applyCameraZoom(); this.applyCameraBounds(); });
+
+    this.cursors = this.input.keyboard!.createCursorKeys();
+    this.keyAct = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.keyAct.on('down', () => this.doAction());
+
+    // 触摸解锁音频
+    this.input.on('pointerdown', unlockAudio);
+
+    // 全部画面渲染完毕后，通知 UI 显示晨报
+    this.time.delayedCall(100, () => {
+      (this.scene.get('ui') as UIScene).onGameReady();
+    });
+
+    window.__vale = { scene: this, world: this.world };
+  }
+
+  // ------------------------------------------------------------- 地图
+
+  private isBlockedTile(tx: number, ty: number): boolean {
+    if (!inMap(tx, ty)) return true;
+    // 特殊建筑 / 水面 / 栅栏
+    if (tx === 2 && ty === 2) return true;   // 小屋
+    if (tx === 19 && ty === 2) return true;  // 商店
+    if (tx === 15 && ty === 3) return true;  // 出货箱
+    if (tx >= 20 && ty >= 13) return true;   // 水塘
+    if (ty === 4 && tx >= 3 && tx <= 14 && tx !== 8 && tx !== 9) return true; // 栅栏
+    if (ty === 15 && tx >= 3 && tx <= 14) return true;
+    // 农田内的障碍
+    const fc = farmCoord(tx, ty);
+    if (fc) {
+      const p = plotAt(this.world, fc.x, fc.y);
+      if (p && p.obstacle) return true;
+    }
+    // NPC 占位
+    for (const [, s] of this.npcSprites) {
+      const nx = Math.floor(s.x / TILE_PX);
+      const ny = Math.floor(s.y / TILE_PX);
+      if (nx === tx && ny === ty) return true;
+    }
+    return false;
+  }
+
+  private buildMap(): void {
+    const rnd = new Phaser.Math.RandomDataGenerator(['vale-farm-ground']);
+    // 外圈多铺 8 格草地（只画不参与碰撞）：竖屏一屏比地图还高，
+    // 不铺的话地图边缘外会露出纯背景色，看起来像黑边。多铺一层最省事也最安全。
+    const PAD = 8;
+    for (let y = -PAD; y < MAP_H + PAD; y++) {
+      for (let x = -PAD; x < MAP_W + PAD; x++) {
+        const img = this.add.image(x * TILE_PX + 16, y * TILE_PX + 16, 'tiles', TILE.grass_a);
+        // 地表随机化 + 稀疏花丛
+        const r = rnd.between(0, 9);
+        img.setFrame(r === 0 ? TILE.grass_b : r === 1 ? TILE.grass_c : TILE.grass_a);
+        img.setDepth(-10);
+        this.groundSprites.push(img);
+      }
+    }
+    const putTile = (tx: number, ty: number, frame: number) => {
+      const img = this.add.image(tx * TILE_PX + 16, ty * TILE_PX + 16, 'tiles', frame);
+      img.setDepth(-9);
+      this.groundSprites.push(img);
+      return img;
+    };
+    // 小屋 / 商店 / 出货箱 / 床图标位
+    putTile(2, 2, TILE.house);
+    putTile(19, 2, TILE.shop);
+    putTile(15, 3, TILE.bin);
+    // 道路
+    for (let x = 2; x <= 19; x++) putTile(x, 3, TILE.path);
+    putTile(8, 4, TILE.path); putTile(9, 4, TILE.path);
+    // 栅栏
+    for (let x = 3; x <= 14; x++) {
+      if (x !== 8 && x !== 9) putTile(x, 4, TILE.fence);
+      putTile(x, 15, TILE.fence);
+    }
+    // 水塘
+    for (let y = 13; y <= 15; y++) for (let x = 20; x < MAP_W; x++) putTile(x, y, TILE.water);
+    // 角落树桩装饰
+    putTile(0, 0, TILE.stump); putTile(23, 0, TILE.stump);
+    putTile(0, 15, TILE.stump); putTile(23, 1, TILE.stump);
+
+    // 农田地块（动态帧：wild / tilled_dry / tilled_wet）
+    for (let i = 0; i < FARM_W * FARM_H; i++) {
+      const x = FARM_OX + (i % FARM_W);
+      const y = FARM_OY + Math.floor(i / FARM_W);
+      const img = this.add.image(x * TILE_PX + 16, y * TILE_PX + 16, 'tiles', TILE.wild);
+      img.setDepth(-8);
+      this.plotSprites.push(img);
+    }
+
+    // 面朝格光标
+    this.facingCursor = this.add.rectangle(0, 0, TILE_PX - 4, TILE_PX - 4)
+      .setStrokeStyle(2, 0xffffff, 0.9).setDepth(5);
+
+    // 夜色遮罩（随时间加深）
+    // 夜色遮罩铺满整屏（scrollFactor 0）：以前按地图大小铺，屏幕比地图大时会漏出一角不暗
+    this.nightOverlay = this.add.rectangle(
+      this.scale.width / 2, this.scale.height / 2,
+      this.scale.width * 2, this.scale.height * 2,
+      0x0a1030, 0,
+    ).setScrollFactor(0).setDepth(50);
+  }
+
+  private buildActors(): void {
+    // 动画：4 方向 × [站, 左步, 站, 右步]
+    for (const [name, row] of Object.entries(DIR_ROW)) {
+      const base = row * 4;
+      const mk = (key: string, actor: string) => {
+        if (this.anims.exists(key)) return;
+        this.anims.create({
+          key,
+          frames: this.anims.generateFrameNumbers(actor, { frames: [base, base + 1, base + 2, base + 3] }),
+          frameRate: 7,
+          repeat: -1,
+        });
+      };
+      mk('walk-' + name, 'player');
+      mk('npc-walk-' + name, 'npc');
+    }
+
+    this.player = this.add.sprite(
+      this.world.playerX * TILE_PX + 16, this.world.playerY * TILE_PX + 16, 'player', 0,
+    ).setDepth(10);
+
+    for (const def of NPCS) {
+      const s = this.add.sprite(def.home.x * TILE_PX + 16, def.home.y * TILE_PX + 16, 'npc', 0).setDepth(10);
+      this.npcSprites.set(def.id, s);
+    }
+  }
+
+  private buildFx(): void {
+    if (this.world.weather === 'rain') {
+      for (let i = 0; i < 60; i++) {
+        const d = this.add.rectangle(Phaser.Math.Between(0, MAP_W * TILE_PX), Phaser.Math.Between(0, MAP_H * TILE_PX), 2, 10, 0xa8d4f5, 0.5);
+        d.setDepth(40);
+        this.rainDrops.push(d);
+      }
+    }
+  }
+
+  private applyWeather(): void {
+    for (const d of this.rainDrops) d.setVisible(this.world.weather === 'rain');
+  }
+
+  // ------------------------------------------------------------- 农田视觉
+
+  private refreshAllPlots(): void {
+    for (let i = 0; i < FARM_W * FARM_H; i++) this.refreshPlot(i);
+  }
+
+  private refreshPlot(i: number): void {
+    const p = this.world.plots[i];
+    const img = this.plotSprites[i];
+    if (p.state === 'watered') img.setFrame(TILE.tilled_wet);
+    else if (p.state === 'tilled') img.setFrame(TILE.tilled_dry);
+    else img.setFrame(TILE.wild);
+    if (p.obstacle) {
+      img.setFrame(p.obstacle === 'weed' ? TILE.weed : p.obstacle === 'stone' ? TILE.stone : TILE.stump);
+    }
+
+    // 作物 sprite（对象池）
+    const existing = this.activeCrops.get(i);
+    if (p.crop) {
+      const frame = CROP_ORDER.indexOf(p.crop.type) * 5 + (p.crop.withered ? 4 : p.crop.stage);
+      const x = FARM_OX + (i % FARM_W);
+      const y = FARM_OY + Math.floor(i / FARM_W);
+      let s = existing;
+      if (!s) {
+        s = this.cropFree.pop() ?? this.add.sprite(0, 0, 'crops', 0);
+        this.activeCrops.set(i, s);
+      }
+      s.setFrame(frame);
+      s.setPosition(x * TILE_PX + 16, y * TILE_PX + 14);
+      s.setDepth(5 + y);
+      s.setVisible(true);
+    } else if (existing) {
+      existing.setVisible(false);
+      this.activeCrops.delete(i);
+      this.cropFree.push(existing);
+    }
+  }
+
+  // ------------------------------------------------------------- 主循环
+
+  override update(_time: number, delta: number): void {
+    const dt = delta / 1000;
+    this.movePlayer(dt);
+
+    if (!this.timePaused && !this.busy) {
+      this.minuteAcc += delta;
+      while (this.minuteAcc >= MS_PER_GAME_MINUTE) {
+        this.minuteAcc -= MS_PER_GAME_MINUTE;
+        this.world.minute += 1;
+        if (this.world.minute >= FORCE_SLEEP_MINUTE) {
+          this.forceSleep();
+          break;
+        }
+      }
+      // 体力耗尽 → 昏倒
+      if (this.world.energy <= 0 && !this.world.collapsedLastNight) {
+        this.collapse();
+      }
+      // 自动存档（每 20s）
+      this.autoSaveAcc += delta;
+      if (this.autoSaveAcc > 20000) {
+        this.autoSaveAcc = 0;
+        void this.save();
+      }
+    }
+
+    this.updateFacingCursor();
+    this.updateNightTint();
+    this.updateRain(dt);
+    (this.scene.get('ui') as UIScene).syncHud();
+  }
+
+  private updateRain(dt: number): void {
+    if (this.world.weather !== 'rain') return;
+    for (const d of this.rainDrops) {
+      d.y += 260 * dt;
+      d.x -= 40 * dt;
+      if (d.y > MAP_H * TILE_PX) {
+        d.y = -10;
+        d.x = Phaser.Math.Between(0, MAP_W * TILE_PX);
+      }
+    }
+  }
+
+  private updateNightTint(): void {
+    const m = this.world.minute;
+    // 18:00 起渐暗，22 点后维持深蓝夜色
+    let alpha = 0;
+    if (m >= 18 * 60) alpha = Math.min(0.45, (m - 18 * 60) / (4 * 60) * 0.45);
+    if (m >= 24 * 60) alpha = Math.min(0.45, 0.3 + (m - 24 * 60) / 120 * 0.15);
+    this.nightOverlay.fillColor = 0x0a1030;
+    this.nightOverlay.setAlpha(alpha);
+  }
+
+  /**
+   * 相机 zoom = 屏幕物理尺寸 / 设计基准（见 layout.ts）。
+   * 注意 Phaser 的 zoom 是「放大倍数」，与 displayScale 相乘后才是最终像素比；
+   * 这样任何屏幕比例下地块都是正方形，只是能看到的范围不同。
+   */
+  private applyCameraZoom(): void {
+    // scale.width 已是画布内部分辨率（CSS×dpr）。Scale.NONE 下 displayScale 恒为 1，
+    // 所以只需按 dpr 折算，让 1 world px 正好占 1 CSS 像素乘上 layout 给的密度。
+    // 相机内部单位 = 画布像素；屏幕上又被 CSS 拉伸，所以两个比例都要算进去
+    const cam = this.cameras.main;
+    const ins = this.safePx();
+    // 先按整屏算 zoom（密度不变，地平线不会因为刘海而"变小"），
+    // 再把视口缩进安全区：灵动岛 / Home 指示条下面那几十像素不参与取景。
+    // 用画布自身的 CSS 显示尺寸，别用 window.inner* —— 两者可能不一致（见 layout.computeLayout）
+    const r = document.getElementById('game')?.getBoundingClientRect();
+    const cssW = r && r.width > 0 ? r.width : window.innerWidth;
+    const cssH = r && r.height > 0 ? r.height : window.innerHeight;
+    cam.setZoom(gameZoom(this.scale.width, this.scale.height, cssW, cssH));
+    cam.setViewport(ins.left, ins.top, this.scale.width - ins.left - ins.right, this.scale.height - ins.top - ins.bottom);
+    this.syncViewSize();
+  }
+
+  /** 安全区变了才重设视口，避免每帧 setViewport 引起无谓的矩阵重算 */
+  private lastSafeKey = '';
+  private syncSafeViewport(): void {
+    const ins = this.safePx();
+    const key = `${ins.left},${ins.top},${ins.right},${ins.bottom}`;
+    if (key === this.lastSafeKey) return;
+    this.lastSafeKey = key;
+    this.applyCameraZoom();
+    this.applyCameraBounds();
+  }
+
+  /**
+   * 安全区（画布像素）：每帧现读，转屏后数值会变。
+   *
+   * 相机视口内缩和 HUD 用的是同一套「要不要让」的判断（viewportAlreadyInset）：
+   * 可视区已经把状态栏让出去时（iOS PWA 实测 793 = 852 - 59），相机再内缩就等于
+   * 把地图白裁掉一条，而上下本来就没被挡住。两边口径必须一致，否则地图与 HUD 对不上。
+   */
+  private safePx(): { top: number; right: number; bottom: number; left: number } {
+    const S = this.scale.width / Math.max(1, window.innerWidth || this.scale.width);
+    const ins = currentSafeInsets();
+    const screenH = window.screen?.height || 0;
+    const canvasCssH = this.scale.height / S;
+    const eff = screenH ? contentInsets(ins, canvasCssH, screenH) : ins;
+    return {
+      top: Math.round(eff.top * S),
+      right: Math.round(eff.right * S),
+      bottom: Math.round(eff.bottom * S),
+      left: Math.round(eff.left * S),
+    };
+  }
+
+  /** 供调试 / e2e：相机取景范围（已扣安全区） */
+  private syncViewSize(): void {
+    const cam = this.cameras.main;
+    window.__valeView = { w: cam.width / cam.zoom, h: cam.height / cam.zoom };
+  }
+
+  /**
+   * 相机取景范围：地图只有 24×16 格（768×512 world px），竖屏一屏要看到 844 world px 高，
+   * 比地图还高 —— 直接 setBounds 会在地图下方露出背景色（看起来像黑边）。
+   * 这里把范围向两侧各扩半屏，保证相机永远有「地图 + 背景」可画，且人物不会被推到边上。
+   */
+  private applyCameraBounds(): void {
+    const cam = this.cameras.main;
+    const mw = MAP_W * TILE_PX;
+    const mh = MAP_H * TILE_PX;
+    const vw = cam.width / cam.zoom;
+    const vh = cam.height / cam.zoom;
+    const padX = Math.max(0, (vw - mw) / 2) + 64;
+    const padY = Math.max(0, (vh - mh) / 2) + 48;
+    cam.setBounds(-padX, -padY, mw + padX * 2, mh + padY * 2);
+  }
+
+  /** 当前一屏可见的 world 宽高（含相机 zoom） */
+  viewSize(): { w: number; h: number } {
+    const cam = this.cameras.main;
+    return { w: cam.width / cam.zoom, h: cam.height / cam.zoom };
+  }
+
+  private playerTile(): { x: number; y: number } {
+    return {
+      x: Math.floor(this.player.x / TILE_PX),
+      y: Math.floor(this.player.y / TILE_PX),
+    };
+  }
+
+  private facingTile(): { x: number; y: number } {
+    const t = this.playerTile();
+    const d: Record<Facing, [number, number]> = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] };
+    const [dx, dy] = d[this.world.facing];
+    return { x: t.x + dx, y: t.y + dy };
+  }
+
+  private setFacing(f: Facing): void {
+    if (this.world.facing === f) return;
+    this.world.facing = f;
+    this.player.anims.stop();
+    this.player.setFrame(DIR_ROW[f] * 4);
+  }
+
+  private movePlayer(dt: number): void {
+    const ui = this.scene.get('ui') as UIScene;
+    if (this.timePaused || this.busy) {
+      this.player.anims.stop();
+      return;
+    }
+    const joy = ui.getMoveVector();
+    let vx = joy.x;
+    let vy = joy.y;
+    // 桌面调试键
+    if (this.cursors) {
+      if (this.cursors.left.isDown) vx = -1;
+      if (this.cursors.right.isDown) vx = 1;
+      if (this.cursors.up.isDown) vy = -1;
+      if (this.cursors.down.isDown) vy = 1;
+    }
+    const len = Math.hypot(vx, vy);
+    if (len < 0.25) {
+      this.player.anims.stop();
+      this.player.setFrame(DIR_ROW[this.world.facing] * 4);
+      return;
+    }
+    vx /= Math.max(1, len);
+    vy /= Math.max(1, len);
+
+    if (Math.abs(vx) > Math.abs(vy)) this.setFacing(vx > 0 ? 'right' : 'left');
+    else this.setFacing(vy > 0 ? 'down' : 'up');
+
+    // 逐轴移动 + 脚部碰撞（脚部小碰撞盒，手感顺滑）
+    const foot = (x: number, y: number) => this.isBlockedTile(Math.floor(x / TILE_PX), Math.floor((y + 10) / TILE_PX));
+    const nx = this.player.x + vx * SPEED * dt;
+    if (!foot(nx, this.player.y)) this.player.x = nx;
+    const ny = this.player.y + vy * SPEED * dt;
+    if (!foot(this.player.x, ny)) this.player.y = ny;
+
+    this.player.play('walk-' + this.world.facing, true);
+    this.world.playerX = this.playerTile().x;
+    this.world.playerY = this.playerTile().y;
+  }
+
+  private updateFacingCursor(): void {
+    const t = this.facingTile();
+    this.facingCursor.setPosition(t.x * TILE_PX + 16, t.y * TILE_PX + 16);
+  }
+
+  // ------------------------------------------------------------- 动作
+
+  /** 智能动作键：按面朝对象自动选择 锄/种/浇/收/清/对话/商店/睡觉 */
+  doAction(): void {
+    if (this.busy || this.timePaused) return;
+    const t = this.facingTile();
+    const pt = this.playerTile();
+
+    // NPC 就在面前（含相邻）
+    for (const [id, s] of this.npcSprites) {
+      const nx = Math.floor(s.x / TILE_PX);
+      const ny = Math.floor(s.y / TILE_PX);
+      if ((nx === t.x && ny === t.y) || Math.abs(nx - pt.x) + Math.abs(ny - pt.y) === 1) {
+        (this.scene.get('ui') as UIScene).openDialog(id);
+        return;
+      }
+    }
+
+    if (t.x === 19 && t.y === 2) { this.tryOpenShop(); return; }
+    if (t.x === 15 && t.y === 3) { (this.scene.get('ui') as UIScene).openSellBin(); return; }
+    if (t.x === 2 && t.y === 2) { (this.scene.get('ui') as UIScene).openSleepConfirm(); return; }
+
+    const fc = farmCoord(t.x, t.y);
+    if (!fc) { (this.scene.get('ui') as UIScene).toast('这里没什么可做的'); return; }
+    this.farmAction(fc.x, fc.y);
+  }
+
+  private farmAction(fx: number, fy: number): void {
+    const ui = this.scene.get('ui') as UIScene;
+    const p = plotAt(this.world, fx, fy);
+    if (!p) return;
+
+    // 1. 需要清理（枯萎作物优先）
+    if ((p.crop && p.crop.withered) || p.obstacle) {
+      const r = doClear(this.world, fx, fy);
+      SFX.till();
+      this.afterAction(r.text, r.ok, r.energy);
+      this.refreshPlot(fy * FARM_W + fx);
+      return;
+    }
+    // 2. 收获
+    if (p.crop && p.crop.stage >= 3) {
+      const r = doHarvest(this.world, fx, fy);
+      SFX.harvest();
+      this.afterAction(r.text, r.ok, r.energy);
+      this.refreshPlot(fy * FARM_W + fx);
+      if (r.ok) (this.scene.get('ui') as UIScene).floatText(fx, fy, r.text);
+      return;
+    }
+    // 3. 浇水（升级水壶一次 3 格：垂直于行走方向）
+    if (p.crop && !p.crop.withered && p.state !== 'watered') {
+      const targets: Array<[number, number]> = [[fx, fy]];
+      if (this.world.toolCan === 2) {
+        const horiz = this.world.facing === 'left' || this.world.facing === 'right';
+        if (horiz) { targets.push([fx, fy - 1], [fx, fy + 1]); }
+        else { targets.push([fx - 1, fy], [fx + 1, fy]); }
+      }
+      let did = 0;
+      for (const [x, y] of targets) {
+        const r = doWater(this.world, x, y);
+        if (r.ok) {
+          did++;
+          this.refreshPlot(y * FARM_W + x);
+        }
+      }
+      if (did > 0) {
+        SFX.water();
+        this.afterAction(did > 1 ? `浇了 ${did} 格水` : '浇了水', true, 2 * did);
+      } else {
+        ui.toast('浇不了水');
+        SFX.fail();
+      }
+      return;
+    }
+    if (p.crop) { ui.toast('已经浇过水了'); SFX.ui(); return; }
+    // 4. 锄地（升级锄头顺带下一格）
+    if (p.state === 'wild' && !p.obstacle) {
+      const targets: Array<[number, number]> = [[fx, fy]];
+      if (this.world.toolHoe === 2) {
+        const d: Record<Facing, [number, number]> = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] };
+        const [dx, dy] = d[this.world.facing];
+        const nx2 = fx + dx, ny2 = fy + dy;
+        const p2 = plotAt(this.world, nx2, ny2);
+        if (p2 && p2.state === 'wild' && !p2.obstacle) targets.push([nx2, ny2]);
+      }
+      let did = 0;
+      for (const [x, y] of targets) {
+        const r = doHoe(this.world, x, y);
+        if (r.ok) {
+          did++;
+          this.refreshPlot(y * FARM_W + x);
+        }
+      }
+      if (did > 0) {
+        SFX.till();
+        this.afterAction(did > 1 ? `翻好了 ${did} 格地` : '翻好了土地', true, 4 * did);
+      } else {
+        ui.toast('体力不够了…');
+        SFX.fail();
+      }
+      return;
+    }
+    // 5. 播种
+    if (p.state !== 'wild' && !p.crop) {
+      const seed = ui.currentSeed();
+      if (!seed) {
+        // 找一把有货的种子
+        const owned = CROP_ORDER.find((c) => (this.world.inventory['seed:' + c] || 0) > 0);
+        if (!owned) { ui.toast('没有种子，去商店买吧'); SFX.fail(); return; }
+        ui.setCurrentSeed(owned);
+        this.doPlantAt(ui, fx, fy, owned);
+        return;
+      }
+      this.doPlantAt(ui, fx, fy, seed);
+      return;
+    }
+    ui.toast('这里不能耕作');
+  }
+
+  private doPlantAt(ui: UIScene, fx: number, fy: number, crop: CropId): void {
+    const r = doPlant(this.world, fx, fy, crop);
+    if (r.ok) SFX.plant(); else SFX.fail();
+    this.afterAction(r.text, r.ok, r.energy);
+    this.refreshPlot(fy * FARM_W + fx);
+  }
+
+  private afterAction(text: string, ok: boolean, _energy: number): void {
+    (this.scene.get('ui') as UIScene).toast(ok ? text : text);
+    if (!ok) SFX.fail();
+    if (this.world.energy <= 0 && ok) this.collapse();
+  }
+
+  /** 收获飘字（世界坐标，随相机移动后上浮消失） */
+  spawnFloatText(fx: number, fy: number, text: string): void {
+    const x = (FARM_OX + fx) * TILE_PX + 16;
+    const y = (FARM_OY + fy) * TILE_PX;
+    const t = this.add.text(x, y, text, {
+      fontSize: '16px', color: '#ffe08a', fontFamily: 'sans-serif',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(100);
+    this.tweens.add({
+      targets: t, y: y - 40, alpha: 0, duration: 1200, ease: 'Quad.Out',
+      onComplete: () => t.destroy(),
+    });
+  }
+
+  // ------------------------------------------------------------- 日循环
+
+  private tryOpenShop(): void {
+    const m = this.world.minute;
+    if (m < SHOP_OPEN_MINUTE || m >= SHOP_CLOSE_MINUTE) {
+      (this.scene.get('ui') as UIScene).toast('商店还没开门（9:00 - 22:00）');
+      SFX.fail();
+      return;
+    }
+    (this.scene.get('ui') as UIScene).openShop();
+  }
+
+  sleep(fromCollapse = false): void {
+    if (this.busy) return;
+    this.busy = true;
+    SFX.sleep();
+    const report = endDay(this.world, fromCollapse);
+
+    // 相机淡出 → 结算 → 淡入
+    this.cameras.main.fadeOut(400, 0, 0, 0);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      this.refreshAllPlots();
+      this.applyWeather();
+      // 新的一天：玩家回到床边
+      this.player.setPosition(2 * TILE_PX + 16, 3 * TILE_PX + 16);
+      this.world.playerX = 2;
+      this.world.playerY = 3;
+      this.cameras.main.fadeIn(400, 0, 0, 0);
+      this.busy = false;
+      (this.scene.get('ui') as UIScene).showDayReport(report.lines);
+      void this.save();
+    });
+  }
+
+  private forceSleep(): void {
+    (this.scene.get('ui') as UIScene).toast('夜深了，你撑不住睡着了…');
+    this.sleep(false);
+  }
+
+  private collapse(): void {
+    this.world.energy = 0;
+    SFX.collapse();
+    (this.scene.get('ui') as UIScene).toast('眼前一黑，你昏倒了…');
+    this.sleep(true);
+  }
+
+  // ------------------------------------------------------------- 存档
+
+  async save(): Promise<void> {
+    this.world.facing = this.world.facing;
+    await writeSaveJson(serialize(this.world));
+  }
+
+  getSeasonInfo(): { season: number; dayOfSeason: number } {
+    return { season: seasonOf(this.world.day), dayOfSeason: dayOfSeason(this.world.day) };
+  }
+
+  currentSeasonSeeds(): CropId[] {
+    return seasonSeeds(this.world.season);
+  }
+}
+
+// 供测试与调试
+declare global {
+  interface Window {
+    /** 当前一屏可见的 world 宽高，e2e 用它判断有没有变形 */
+    __valeView?: { w: number; h: number };
+    __vale?: { scene: GameScene; world: World };
+  }
+}
