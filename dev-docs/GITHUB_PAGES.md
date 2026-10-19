@@ -3,12 +3,16 @@
 本项目**源码与可部署产物在同一个仓库里**，产物直接构建到 `docs/`。
 所以不需要 `gh-pages` 分支、不需要 GitHub Actions、也不需要手动拷贝文件。
 
+> 公开仓库：<https://github.com/zhihaofans/ValeFarm>
+>
+> 项目页：<https://zhihaofans.github.io/ValeFarm/>
+
 ## 一次性配置
 
-1. 把仓库推到 GitHub（`main` 分支要包含 `docs/` 目录）
+1. 把仓库推到 GitHub（`master` 分支要包含 `docs/` 目录）
 2. 仓库 → **Settings** → 左侧 **Pages**
 3. **Source** 选 `Deploy from a branch`
-4. **Branch** 选 `main`，**目录选 `/docs`**，点 Save
+4. **Branch** 选 `master`，**目录选 `/docs`**，点 Save
 5. 等 1~2 分钟，访问 `https://<用户名>.github.io/<仓库名>/`
 
 > 项目页会挂在 `/<仓库名>/` 子路径下。产物全部用相对路径（`vite.config.ts` 的 `base: './'`），

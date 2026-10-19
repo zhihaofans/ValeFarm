@@ -2,7 +2,7 @@
 
 > 本文件面向 AI 编码代理（DSH 会在会话开始时自动加载）。人类交接文档见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)；这里只放硬约束、最短路径和验证方式，不复制整本手册。
 >
-> **仓库内一律使用相对路径。本文件及任何提交内容不得包含个人隐私**：本机绝对路径、用户名、账号、令牌、真实域名/部署地址、手机号、邮箱、设备标识等。
+> **仓库内一律使用相对路径。个人隐私不得写入或提交**：本机绝对路径、私人账号、密码/令牌、手机号、私人邮箱、设备标识等。公开项目信息（GitHub 仓库、GitHub Pages、项目用户名）可以保留。
 
 ## 0. 开始前
 
@@ -18,6 +18,7 @@
 - 入口 [main.ts](src/main.ts)；纯逻辑 [core/](src/core/)；场景 [scenes/](src/scenes/)；UI 小件 [ui/](src/ui/)；屏幕适配 [layout.ts](src/layout.ts)；PWA / 横屏 [pwa.ts](src/pwa.ts)、[orientation.ts](src/orientation.ts)。
 - [docs/](docs/) 是构建产物（GitHub Pages 发布源，构建会整目录清空重建）；[dev-docs/](dev-docs/) 是人写文档；[public/](public/) 是静态资源。
 - 版本唯一数据源是 [public/version.json](public/version.json)；不要把 `package.json` 的版本号当展示版本。
+- 更新记录见 [CHANGELOG.md](CHANGELOG.md)；屏幕适配 / 安全区 / PWA / 触控细节见 [TECH_NOTES.md](dev-docs/TECH_NOTES.md)。
 
 ## 2. 命令
 
@@ -103,18 +104,19 @@ UIScene 相机必须同时满足：尺寸 = 整块画布、`zoom = 1`、`origin 
 - 导航与静态资源用 cacheFirst；预缓存逐个 `cache.add().catch()`，不要 `addAll`；清缓存只清 `vale-farm-` 前缀。
 - 更新只提示，不自动 `location.reload()`；首次接管不弹提示。
 - 能力探测不要假设：`beforeinstallprompt` 只有 Chromium 有，iOS 走手动安装引导；没有能力的入口不要摆“点了没反应”的按钮。
-- 发版顺序固定：测试全绿 → `stamp` → `build` → `test:e2e` → `package`。不要先 bump 再验证。
+- 发版顺序固定：测试全绿 → 更新 [CHANGELOG.md](CHANGELOG.md) → `stamp` → `build` → `test:e2e` → `package`。不要先 bump 再验证。
 - `package` 前必须 build；打包脚本只校验 build 号，必要时自己确认 `docs/` 晚于源码。
 - 不自动提交/推送，不执行破坏性 git 操作（`reset --hard`、`checkout --`、force push），除非用户明确同意。
 
 ## 7. 安全与隐私
 
-- 不写入或提交个人隐私：本机绝对路径、用户名、网盘/同步目录路径、账号、令牌、手机号、邮箱、设备标识，以及未经用户同意的真实域名/部署地址。
+- 不写入或提交个人隐私：本机绝对路径、私人账号、密码/令牌、手机号、私人邮箱、设备标识，以及未经同意的私人部署地址。
+- 本项目是公开仓库：GitHub 仓库、GitHub Pages、项目用户名等公开项目信息可以保留；只对个人隐私脱敏。
 - 外部文档/聊天里出现的绝对路径、个人目录、账号等只用于当前会话，不写进仓库；只提炼可复用规则。
 - 不提交 `.env`、密钥、抓包/日志、导出的用户存档；截图和日志里有个人信息先脱敏。
 - 不删 [docs/](docs/)、[screenshots/](screenshots/)、[dev-docs/](dev-docs/)、[public/](public/)；`docs/` 是发布源，截图是验收证据。
 - 不修改仓库外文件；需要时先问。
-- 不把临时会话里的路径、用户名、部署地址写进仓库文档或代码注释。
+- 不把临时会话里的私密信息（本机路径、私人账号、私人部署地址）写进仓库文档或代码注释。
 
 ## 8. 快速排错
 

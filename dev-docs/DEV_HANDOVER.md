@@ -3,9 +3,11 @@
 > 给接手这个项目的人。目标：**读完后能独立改需求、跑测试、发版本，不踩我们已经踩过的坑。**
 >
 > 相关文档：
+> - [`TECH_NOTES.md`](./TECH_NOTES.md) —— 屏幕适配 / 安全区 / PWA / 触控的实现推理
+> - [`CHANGELOG.md`](../CHANGELOG.md) —— 版本与 build 历史
 > - [`GAME_DESIGN.md`](./GAME_DESIGN.md) —— 游戏设定与数值（改平衡先看这个）
 > - [`GITHUB_PAGES.md`](./GITHUB_PAGES.md) —— 部署到 GitHub Pages 的步骤
-> - [`../README.md`](../README.md) —— 项目总览与特性说明
+> - [`../README.md`](../README.md) —— 项目总览与快速开始
 
 ---
 
@@ -176,7 +178,7 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 | 13 | 子目录部署 404 | 用了绝对路径 | `base: './'` 全相对路径，e2e 有深层子路径用例守着 |
 | 14 | 同一版本内多次构建，手机还是旧页面 | SW 缓存名只含 BUILD | 缓存名叠加`构建产物内容哈希`（`CACHE_TAG`），产物变则缓存名必变 |
 
-> 更详细的推理过程见 `../README.md` 的「屏幕适配」与「PWA / 离线要点」两节。
+> 更详细的推理过程见 [`TECH_NOTES.md`](./TECH_NOTES.md) 的「屏幕适配」与「PWA / 离线」两节。
 
 ---
 
@@ -245,6 +247,7 @@ git add -A && git commit -m "..." && git push
 
 `public/version.json` 是版本信息的**唯一数据源**，`tools/stamp.js` 会把构建号注入
 `sw.js` 的 `BUILD` 并回读校验，不要手改任何一处的版本号。
+发版前先更新 [`CHANGELOG.md`](../CHANGELOG.md)，再执行 `stamp`。
 
 ### 用户怎么收到更新
 
