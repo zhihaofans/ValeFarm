@@ -86,6 +86,27 @@ describe('作物状态机', () => {
     expect(p.state).toBe('watered');
     expect(p.crop!.wateredToday).toBe(true);
   });
+
+  it('雨天播种：新苗当天继承雨水，不会因为浇水被拒而停滞', () => {
+    const w = createWorld();
+    w.weather = 'rain';
+    w.inventory['seed:radish'] = 1;
+    doHoe(w, 0, 3);
+    expect(doPlant(w, 0, 3, 'radish').ok).toBe(true);
+    const p = plotAt(w, 0, 3)!;
+    expect(p.state).toBe('watered');
+    expect(p.crop!.wateredToday).toBe(true);
+  });
+
+  it('已浇湿的裸地播种：新苗继承水分', () => {
+    const w = createWorld();
+    w.inventory['seed:radish'] = 1;
+    doHoe(w, 0, 3);
+    expect(doWater(w, 0, 3).ok).toBe(true);
+    expect(doPlant(w, 0, 3, 'radish').ok).toBe(true);
+    const p = plotAt(w, 0, 3)!;
+    expect(p.crop!.wateredToday).toBe(true);
+  });
 });
 
 describe('日循环', () => {
@@ -114,6 +135,16 @@ describe('日循环', () => {
     endDay(w, false);
     expect(w.day).toBe(29);
     expect(w.season).toBe(1); // 夏
+  });
+
+  it('跨季当晚按新季节结算：春末种下的豌豆不会白活第一个夏天', () => {
+    const w = plantedWorld('pea'); // 豌豆只适合春/秋
+    w.day = 28;
+    doWater(w, 0, 3);
+    endDay(w, false);
+    expect(w.day).toBe(29);
+    expect(w.season).toBe(1);
+    expect(plotAt(w, 0, 3)!.crop!.withered).toBe(true);
   });
 
   it('每日 NPC 互动标记在睡觉后重置', () => {

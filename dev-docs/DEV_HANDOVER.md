@@ -30,8 +30,8 @@ npm run dev -- --host   # 手机同局域网调试（需 https 或 localhost 才
 
 npm run build        # 类型检查 + 构建 → docs/
 npm run preview      # 预览构建产物 :4173
-npm test             # 单元测试（vitest，68 条，秒级）
-npm run test:e2e     # 端到端（playwright，36 条，约 40 秒）
+npm test             # 单元测试（vitest，73 条，秒级）
+npm run test:e2e     # 端到端（playwright，38 条，约 50 秒）
 npm run package      # 打 zip（源码 + docs/）
 ```
 
@@ -123,21 +123,23 @@ textButton(this, x_css * S, y_css * S, 120 * S, 44 * S, '确定', cb)
 
 所以 UI 排版全部在"画布像素"坐标系里做，尺寸常量仍按 CSS 像素书写、落点时乘 dpr。
 
-### 4.3 ★ 安全区：UI 和相机是两套口径，不能混用
+### 4.3 ★ 安全区：UI 让出，相机铺满
 
 这是本项目最绕的一处，**改之前务必读完**。
 
 真机数据（iPhone 393×852，PWA）：`screen.height = 852`、`env(top/bottom) = 59/34`、`innerHeight = 793`（= 852 − 59）。
+iPhone 15 Pro 横屏（852×393）则是：`env(top/bottom) = 0/21`、`env(left/right) = 59/59`。
 
 `env(top) = 59` 有两个含义：
 
-| 谁 | 用哪个函数 | top 怎么处理 | 为什么 |
-|---|---|---|---|
-| **相机取景**（`GameScene.safePx`） | `contentInsets()` | 视口已让开 → **归 0** | 相机在可视区里再切一块取景，那 59px 本来就不在可视区、也没被遮挡，再切就是白裁地图 |
-| **UI 覆盖层**（`UIScene`） | `uiInsets()` | **永远不让出**，保持 59 | HUD 是"盖"上去的。`black-translucent` 让状态栏白字浮在网页上，HUD 底色必须铺到 y=0 盖住它，文字排到 59 之下 |
+| 谁 | 怎么处理 | 为什么 |
+|---|---|---|
+| **相机取景**（`GameScene`） | **整块画布，不内缩** | 世界可以落到灵动岛/圆角下面，由硬件自然遮挡；按安全区裁 viewport 会在横屏左右/底部露黑边 |
+| **UI 覆盖层**（`UIScene`） | `uiInsets()`；top **永远不让出**，left/right/bottom 都让 | HUD 是"盖"上去的。`black-translucent` 让状态栏白字浮在网页上，HUD 底色必须铺到 y=0 盖住它，文字排到 59 之下；横屏左右是灵动岛/圆角，按钮和 HUD 必须收进去 |
 
 **用错的后果**：build 17 让 UI 也走 `contentInsets`，`safe.top` 归零 → HUD 底色只到 45px，
 状态栏那排白字落在里面被糊掉 → 用户反馈"顶部状态栏看都看不到了"。
+`contentInsets()` 现在只作 `uiInsets()` 的辅助/历史判据，不再给相机用。
 
 同理，`--app-h` 必须写 `innerHeight`，不能写 `visualViewport.height`：
 后者是 793 而屏幕是 852，页面只画到 793，下方 59px 直接露 `html` 背景色（"底部黑条空白"）。
@@ -184,7 +186,7 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 
 ## 6. 测试策略
 
-### 单元测试（68 条，`tests/unit/`）
+### 单元测试（73 条，`tests/unit/`）
 
 全是 `core/` 的纯函数，不碰浏览器。改了经济、存档、作物、NPC 逻辑必须保持绿。
 
@@ -196,7 +198,7 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 | `viewport-inset.test.ts` | ★ 视口是否已让开、`uiInsets` 与 `contentInsets` 的分工 |
 | `crops.test.ts` / `economy.test.ts` / `npc.test.ts` | 作物阶段、买卖算价、好感度边界 |
 
-### E2E（36 条，`tests/e2e/`）
+### E2E（38 条，`tests/e2e/`）
 
 | 文件 | 守什么 |
 |---|---|

@@ -10,6 +10,7 @@
 import Phaser from 'phaser';
 
 export class Joystick {
+  private scene: Phaser.Scene;
   private base: Phaser.GameObjects.Arc;
   private ring: Phaser.GameObjects.Arc;
   private stick: Phaser.GameObjects.Arc;
@@ -21,7 +22,30 @@ export class Joystick {
   /** 由 UI 场景在打开/关闭面板时切换；true 时摇杆完全不响应 */
   locked = false;
 
+  private onDown = (p: Phaser.Input.Pointer): void => {
+    if (this.locked) return; // 面板打开时不抢触摸
+    if (this.activePointer !== null) return;
+    // 只认左下角附近的按下：右半屏留给动作键 / 种子槽 / 面板
+    const dx = p.x - this.home.x;
+    const dy = p.y - this.home.y;
+    if (Math.hypot(dx, dy) > this.radius * 1.9) return;
+    if (p.x > this.scene.scale.width * 0.55) return;
+    this.activePointer = p.id;
+    this.track(p);
+  };
+
+  private onMove = (p: Phaser.Input.Pointer): void => {
+    if (p.id !== this.activePointer) return;
+    this.track(p);
+  };
+
+  private onUp = (p: Phaser.Input.Pointer): void => {
+    if (p.id !== this.activePointer) return;
+    this.release();
+  };
+
   constructor(scene: Phaser.Scene) {
+    this.scene = scene;
     this.ring = scene.add.circle(0, 0, 56, 0x000000, 0.12)
       .setStrokeStyle(2, 0xffffff, 0.14).setScrollFactor(0).setDepth(900);
     this.base = scene.add.circle(0, 0, 56, 0x000000, 0.3)
@@ -29,27 +53,10 @@ export class Joystick {
     this.stick = scene.add.circle(0, 0, 26, 0xffffff, 0.6)
       .setScrollFactor(0).setDepth(902);
 
-    scene.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.locked) return; // 面板打开时不抢触摸
-      if (this.activePointer !== null) return;
-      // 只认左下角附近的按下：右半屏留给动作键 / 种子槽 / 面板
-      const dx = p.x - this.home.x;
-      const dy = p.y - this.home.y;
-      if (Math.hypot(dx, dy) > this.radius * 1.9) return;
-      if (p.x > scene.scale.width * 0.55) return;
-      this.activePointer = p.id;
-      this.track(p);
-    });
-    scene.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-      if (p.id !== this.activePointer) return;
-      this.track(p);
-    });
-    const up = (p: Phaser.Input.Pointer) => {
-      if (p.id !== this.activePointer) return;
-      this.release();
-    };
-    scene.input.on('pointerup', up);
-    scene.input.on('pointerupoutside', up);
+    scene.input.on('pointerdown', this.onDown);
+    scene.input.on('pointermove', this.onMove);
+    scene.input.on('pointerup', this.onUp);
+    scene.input.on('pointerupoutside', this.onUp);
   }
 
   /** 设置底盘圆心与半径（UIScene 布局时调用，转屏后会重新调用） */
@@ -62,6 +69,22 @@ export class Joystick {
     this.stick.setRadius(Math.max(12, radius * 0.45)).setPosition(x, y);
     this.vec.set(0, 0);
     this.applyAlpha(0.62);
+  }
+
+  /**
+   * 移出场景输入监听器与图形。
+   * UIScene 转屏/安全区变化会重建摇杆；不 destroy 旧实例会让 scene.input
+   * 上的 pointerdown/move/up 监听器越积越多，旧摇杆也会继续响应。
+   */
+  destroy(): void {
+    this.scene.input.off('pointerdown', this.onDown);
+    this.scene.input.off('pointermove', this.onMove);
+    this.scene.input.off('pointerup', this.onUp);
+    this.scene.input.off('pointerupoutside', this.onUp);
+    this.release();
+    this.ring.destroy();
+    this.base.destroy();
+    this.stick.destroy();
   }
 
   private applyAlpha(a: number): void {

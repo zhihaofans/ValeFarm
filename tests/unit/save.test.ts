@@ -111,6 +111,11 @@ describe('存档 normalize', () => {
     expect(w.plots.length).toBe(120);
   });
 
+  it('season 脏值归一化到 0..3 的整数', () => {
+    expect(normalizeWorld({ season: 2.5 }).season).toBe(2);
+    expect(normalizeWorld({ season: -1 }).season).toBe(3);
+  });
+
   it('非法存档 JSON 返回 null（不白屏）', () => {
     expect(deserialize('{not json')).toBeNull();
     expect(importSave('nonsense')).toBeNull();

@@ -14,12 +14,12 @@ const BUILD = '19';
 // 为什么不能只靠 BUILD：BUILD 只在发版时变；若同一版本内多次构建（修 bug 但不升版本），
 // 缓存名不变 → cacheFirst 一直吐旧页面，用户在手机上看到的还是旧版（0.4.1 踩过）。
 // 用内容哈希后，只要产物变了缓存名必变，activate 会清旧缓存并接管。
-const CACHE_TAG = '3f924f5c';
+const CACHE_TAG = '439f3132';
 const CACHE = 'vale-farm-' + BUILD + '-' + CACHE_TAG;
 const CACHE_PREFIX = 'vale-farm-';
 
 const ASSETS = [
-  './assets/index-C9rDwAss.js',
+  './assets/index-8DHTCj3W.js',
   './',
   './index.html',
   './diag.html',

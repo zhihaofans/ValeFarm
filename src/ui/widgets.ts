@@ -141,9 +141,9 @@ export function makePanel(scene: Phaser.Scene, title: string, onClose?: () => vo
   root.setDepth(UI_DEPTH.modal);
 
   // 遮罩：铺满整屏并吞掉点击（不穿透到背景）——先加，必须在最底层。
-  // 尺寸按「屏幕宽高」给、位置按「面板中心」补：矩形在 root 坐标系里，
-  // root 原点=面板中心，所以屏幕被完整盖住（3 倍尺寸的老做法会在边缘漏亮边）。
-  const shade = scene.add.rectangle(uiW / 2, uiH / 2, uiW, uiH, 0x000000, 0.6);
+  // 它是 root 的子对象：root 原点 = 面板中心，所以 local (0,0) 就是屏幕中心。
+  // 面板被 placePanel 挪到 HUD 下方后，resizeShade 会把 shade 的局部 y 补回屏幕中心。
+  const shade = scene.add.rectangle(0, 0, uiW, uiH, 0x000000, 0.6);
   shade.setInteractive();
   // 记录创建时已经在屏幕上的手指。这些手指的 pointerup 不应当算作"点遮罩关闭"，
   // 否则"按下动作键 → 面板弹出 → 松手"会把面板瞬间关掉（手机上必然发生）。
@@ -190,12 +190,15 @@ export function makePanel(scene: Phaser.Scene, title: string, onClose?: () => vo
     root, body, w: cssW, h: cssH, close,
     setTitle: (t: string) => titleTxt.setText(t),
     resizeShade: (vw: number, vh: number, cy?: number) => {
-      root.setPosition(vw / 2, cy ?? vh / 2);
-      // 遮罩铺满整屏并跟着面板一起移动（它在 root 里，原点=面板中心），
-      // 所以尺寸按「屏幕宽高」给，位置按「面板中心」补，屏幕永远被盖全。
-      shade.setPosition(-vw / 2, -cy! / 2 + vh / 2);
+      const centerY = cy ?? vh / 2;
+      root.setPosition(vw / 2, centerY);
+      // 遮罩在 root 的局部坐标里；root 下移了多少，shade 就补回多少，
+      // 保证它的世界中心仍在 (vw/2, vh/2)，而不是跟着面板跑到下半个屏幕。
+      shade.setPosition(0, vh / 2 - centerY);
       shade.setSize(vw, vh);
-      shade.input?.hitArea.setTo(-vw / 2, -vh / 2, vw, vh);
+      // ⚠️ Rectangle 是 Shape 不是 Container：它的输入命中区按「左上角 + displayOrigin」
+      // 解释，必须写 (0,0,w,h)；写成 (-w/2,-h/2,w,h) 会让实际可点区域只覆盖左上半个屏幕。
+      shade.input?.hitArea.setTo(0, 0, vw, vh);
     },
   };
 }

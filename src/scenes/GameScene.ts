@@ -9,7 +9,7 @@ import {
   SHOP_OPEN_MINUTE, SHOP_CLOSE_MINUTE,
 } from '../core/config';
 import { CROP_ORDER, DIR_ROW, NPCS } from '../core/data';
-import { currentSafeInsets, contentInsets, gameZoom } from '../layout';
+import { gameZoom } from '../layout';
 import {
   doClear, doHarvest, doHoe, doPlant, doWater,
 } from '../core/actions';
@@ -60,8 +60,6 @@ export class GameScene extends Phaser.Scene {
 
     this.applyCameraZoom();
     this.applyCameraBounds();
-    // 安全区（灵动岛 / Home 指示条）可能晚于首帧才生效，逐帧校准一次（内部幂等）
-    this.time.addEvent({ delay: 250, loop: true, callback: () => this.syncSafeViewport() });
     // 一屏能看到多少 world 单位：e2e / 调试用，也是"地块是否方"的唯一判据
     window.__valeView = this.viewSize();
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
@@ -74,6 +72,18 @@ export class GameScene extends Phaser.Scene {
 
     // 触摸解锁音频
     this.input.on('pointerdown', unlockAudio);
+
+    // 切后台 / 页面被系统回收前补一次存档（README 承诺过「切后台自动存档」）
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'hidden') void this.save();
+    };
+    const onPageHide = (): void => { void this.save(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onPageHide);
+    this.events.once('shutdown', () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onPageHide);
+    });
 
     // 全部画面渲染完毕后，通知 UI 显示晨报
     this.time.delayedCall(100, () => {
@@ -198,16 +208,21 @@ export class GameScene extends Phaser.Scene {
   }
 
   private buildFx(): void {
-    if (this.world.weather === 'rain') {
-      for (let i = 0; i < 60; i++) {
-        const d = this.add.rectangle(Phaser.Math.Between(0, MAP_W * TILE_PX), Phaser.Math.Between(0, MAP_H * TILE_PX), 2, 10, 0xa8d4f5, 0.5);
-        d.setDepth(40);
-        this.rainDrops.push(d);
-      }
+    if (this.world.weather === 'rain') this.ensureRainDrops();
+  }
+
+  /** 雨的视觉对象是池化的：第一次下雨时创建，晴天隐藏，之后再下雨直接复用 */
+  private ensureRainDrops(): void {
+    if (this.rainDrops.length > 0) return;
+    for (let i = 0; i < 60; i++) {
+      const d = this.add.rectangle(Phaser.Math.Between(0, MAP_W * TILE_PX), Phaser.Math.Between(0, MAP_H * TILE_PX), 2, 10, 0xa8d4f5, 0.5);
+      d.setDepth(40);
+      this.rainDrops.push(d);
     }
   }
 
   private applyWeather(): void {
+    if (this.world.weather === 'rain') this.ensureRainDrops();
     for (const d of this.rainDrops) d.setVisible(this.world.weather === 'rain');
   }
 
@@ -315,51 +330,19 @@ export class GameScene extends Phaser.Scene {
     // 所以只需按 dpr 折算，让 1 world px 正好占 1 CSS 像素乘上 layout 给的密度。
     // 相机内部单位 = 画布像素；屏幕上又被 CSS 拉伸，所以两个比例都要算进去
     const cam = this.cameras.main;
-    const ins = this.safePx();
-    // 先按整屏算 zoom（密度不变，地平线不会因为刘海而"变小"），
-    // 再把视口缩进安全区：灵动岛 / Home 指示条下面那几十像素不参与取景。
     // 用画布自身的 CSS 显示尺寸，别用 window.inner* —— 两者可能不一致（见 layout.computeLayout）
     const r = document.getElementById('game')?.getBoundingClientRect();
     const cssW = r && r.width > 0 ? r.width : window.innerWidth;
     const cssH = r && r.height > 0 ? r.height : window.innerHeight;
     cam.setZoom(gameZoom(this.scale.width, this.scale.height, cssW, cssH));
-    cam.setViewport(ins.left, ins.top, this.scale.width - ins.left - ins.right, this.scale.height - ins.top - ins.bottom);
+    // 相机取景 = 整块画布：世界可以落到灵动岛/圆角下面，由硬件自然遮挡；
+    // UI 自己用 uiInsets() 躲开。按安全区裁 viewport 会在横屏左右/底部露黑边，
+    // 和「任何比例都铺满」的目标冲突。
+    cam.setViewport(0, 0, this.scale.width, this.scale.height);
     this.syncViewSize();
   }
 
-  /** 安全区变了才重设视口，避免每帧 setViewport 引起无谓的矩阵重算 */
-  private lastSafeKey = '';
-  private syncSafeViewport(): void {
-    const ins = this.safePx();
-    const key = `${ins.left},${ins.top},${ins.right},${ins.bottom}`;
-    if (key === this.lastSafeKey) return;
-    this.lastSafeKey = key;
-    this.applyCameraZoom();
-    this.applyCameraBounds();
-  }
-
-  /**
-   * 安全区（画布像素）：每帧现读，转屏后数值会变。
-   *
-   * 相机视口内缩和 HUD 用的是同一套「要不要让」的判断（viewportAlreadyInset）：
-   * 可视区已经把状态栏让出去时（iOS PWA 实测 793 = 852 - 59），相机再内缩就等于
-   * 把地图白裁掉一条，而上下本来就没被挡住。两边口径必须一致，否则地图与 HUD 对不上。
-   */
-  private safePx(): { top: number; right: number; bottom: number; left: number } {
-    const S = this.scale.width / Math.max(1, window.innerWidth || this.scale.width);
-    const ins = currentSafeInsets();
-    const screenH = window.screen?.height || 0;
-    const canvasCssH = this.scale.height / S;
-    const eff = screenH ? contentInsets(ins, canvasCssH, screenH) : ins;
-    return {
-      top: Math.round(eff.top * S),
-      right: Math.round(eff.right * S),
-      bottom: Math.round(eff.bottom * S),
-      left: Math.round(eff.left * S),
-    };
-  }
-
-  /** 供调试 / e2e：相机取景范围（已扣安全区） */
+  /** 供调试 / e2e：相机取景范围（整块画布） */
   private syncViewSize(): void {
     const cam = this.cameras.main;
     window.__valeView = { w: cam.width / cam.zoom, h: cam.height / cam.zoom };
@@ -580,7 +563,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private afterAction(text: string, ok: boolean, _energy: number): void {
-    (this.scene.get('ui') as UIScene).toast(ok ? text : text);
+    (this.scene.get('ui') as UIScene).toast(text);
     if (!ok) SFX.fail();
     if (this.world.energy <= 0 && ok) this.collapse();
   }
@@ -635,7 +618,8 @@ export class GameScene extends Phaser.Scene {
 
   private forceSleep(): void {
     (this.scene.get('ui') as UIScene).toast('夜深了，你撑不住睡着了…');
-    this.sleep(false);
+    // 撑到 2:00 按 GAME_DESIGN 的「昏倒惩罚」处理：体力减半 + 罚金币
+    this.sleep(true);
   }
 
   private collapse(): void {
@@ -648,8 +632,11 @@ export class GameScene extends Phaser.Scene {
   // ------------------------------------------------------------- 存档
 
   async save(): Promise<void> {
-    this.world.facing = this.world.facing;
-    await writeSaveJson(serialize(this.world));
+    const ok = await writeSaveJson(serialize(this.world));
+    if (!ok) {
+      const ui = this.scene.get('ui') as UIScene | undefined;
+      ui?.toast('存档失败：浏览器存储不可用');
+    }
   }
 
   getSeasonInfo(): { season: number; dayOfSeason: number } {

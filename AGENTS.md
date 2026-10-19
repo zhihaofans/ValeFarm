@@ -48,8 +48,9 @@ UIScene 相机必须同时满足：尺寸 = 整块画布、`zoom = 1`、`origin 
 
 ### 3.3 安全区
 
-- 相机取景用 `contentInsets()`：视口已让开时 top 归 0。
-- UI 覆盖层用 `uiInsets()`：top 不归零。
+- 相机：整块画布取景，**不按安全区内缩**（否则横屏左右/底部会露黑边）。
+- UI 覆盖层：用 `uiInsets()`；top 不归零，left/right/bottom 都要让开。
+- iOS PWA 兜底：竖屏 `59/0/34/0`，横屏 `0/59/21/59`。
 - **不要给 `#game` 加 `padding: env(safe-area-inset-*)`**：画布会被顶小，内部分辨率与 CSS 尺寸不一致，导致拉伸和触摸偏移。安全区在画布内部处理。
 
 ### 3.4 存档

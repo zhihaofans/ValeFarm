@@ -69,26 +69,27 @@ body.setScale(bodyScale);
 四条铁律：
 
 1. **不能用 padding 挤 `#game`**。画布被顶小，但 Phaser 的内部分辨率仍按视口算 → CSS 拉伸、画面糊、触摸坐标整体偏移。`env()` 只在 `viewport-fit=cover` 时有意义。
-2. **不能让 zoom 去扣安全区**。正确姿势是 zoom 不变、视口内缩：`cam.setViewport(left, top, w-left-right, h-top-bottom)`。
-3. **UI 落点一律从 `safe` 起算**。HUD 从 `safe.top + padY` 起，底部按钮基线取 `max(pad, safeBottom, safe.bottom*S + pad/2)`。
+2. **不能让 zoom 去扣安全区，也不要按安全区裁相机 viewport**。相机保持整块画布：横屏时左右/底部一裁就会露出黑边，和「铺满」冲突；世界落到灵动岛/圆角下面由硬件自然遮挡即可。
+3. **UI 落点一律从 `safe` 起算**。HUD 从 `safe.top + padY` 起，左侧内容从 `safe.left + pad` 起，右侧内容/☰ 收进 `safe.right`，底部按钮基线取 `max(pad, safeBottom, safe.bottom*S + pad/2)`。
 4. **内容自己要有内边距**。`env()` 在 iOS 上常比真实遮挡少几像素；HUD 高度按内容实算（`lines * lineH + padY * 2`，`padY = 9`），文字统一 `origin(0,0)` 从 `ty` 起排。
 
 读取在 [layout.ts](../src/layout.ts)：`readSafeInsets()` 挂探针元素读四条边的 computed padding；`effectiveSafeInsets()` 再夹一道上限 `min(80px, 视口高 × 16%)`，避免分屏时把 UI 挤没。
 
 **不缓存**：转屏时 `resize` 与 `env()` 的生效顺序各浏览器没保证；`UIScene.update()` 每帧读一次、值变了才重建 HUD/按钮。
 
-e2e（headless Chromium 没有刘海，`env()` 恒为 0）通过 `window.__valeSafeInsets = { top: 59, bottom: 34 }` 注入真机数值，`currentSafeInsets()` 优先取注入值。**这是产线里保留的测试钩子，不要删。**
+e2e（headless Chromium 没有刘海，`env()` 恒为 0）通过 `window.__valeSafeInsets = { top: 59, right: 0, bottom: 34, left: 0 }` 注入真机数值，`currentSafeInsets()` 优先取注入值。**这是产线里保留的测试钩子，不要删。**
 
-### 2.1 相机与 UI 的安全区口径
+### 2.1 UI 与相机：谁让、谁不让
 
 真机实测（iPhone 393×852）：`screen.height = 852`、`env(t/b) = 59/34`、`innerHeight = 793`。`852 - 59 = 793`，说明只有顶部被系统让开，底部没有。
 
-| 谁 | 用什么 | top 怎么处理 | 为什么 |
-|---|---|---|---|
-| 相机取景（`GameScene.safePx`） | `contentInsets()` | 视口已让开 → 归 0 | 相机是在可视区里**再切一块**取景；那 59px 本来就不在可视区、也没被挡住，再切就是把地图白裁一条 |
-| UI 覆盖层（`UIScene`） | `uiInsets()` | **永远不让出**，保持 `env(top)`=59 | HUD 是**盖**上去的；`black-translucent` 让状态栏白字浮在网页上，HUD 底色必须铺到 y=0 盖住它，文字排到 59 之下 |
+| 谁 | 怎么处理 | 为什么 |
+|---|---|---|
+| 相机取景（`GameScene`） | **整块画布，不内缩** | 世界可以落到灵动岛/圆角下面，由硬件自然遮挡；按安全区裁 viewport 会在横屏左右/底部露黑边 |
+| UI 覆盖层（`UIScene`） | `uiInsets()`：top 不让出，left/right/bottom 都让 | HUD 是**盖**上去的；`black-translucent` 让状态栏白字浮在网页上，HUD 底色必须铺到 y=0 盖住它，文字排到 59 之下 |
 
-build 17 把两者混用（UI 也走 `contentInsets`），`safe.top` 归零 → HUD 底色只到 45px，状态栏白字被糊掉。
+build 17 曾让 UI 也走 `contentInsets`，`safe.top` 归零 → HUD 底色只到 45px，状态栏白字被糊掉。
+`contentInsets()` 现在只作为 `uiInsets()` 的辅助/历史判据，不再给相机用。
 
 ### 2.2 底部黑带与 `--app-h`
 
@@ -105,7 +106,7 @@ build 17 把两者混用（UI 也走 `contentInsets`），`safe.top` 归零 → 
 
 | 现象 | 根因 | 修法 |
 |---|---|---|
-| 顶部露出深色带，HUD 被压到状态栏下 | iOS 独立窗口里 `viewport-fit=cover` 常不生效 → `env()` 全为 0；`black-translucent` 又让内容铺到状态栏下 | `currentSafeInsets()`：`env()` 四边全 0 且「iOS + 独立模式」时用 `IOS_PWA_FALLBACK = { top: 59, bottom: 34 }`；读到任意一条边就认为 env 正常，不叠经验值 |
+| 顶部露出深色带，HUD 被压到状态栏下 | iOS 独立窗口里 `viewport-fit=cover` 常不生效 → `env()` 全为 0；`black-translucent` 又让内容铺到状态栏下 | `currentSafeInsets()`：`env()` 四边全 0 且「iOS + 独立模式」时兜底。竖屏用 `59/0/34/0`，横屏用 `0/59/21/59`；读到任意一条边就认为 env 正常，不叠经验值 |
 | 上下各一条黑带（高度偏小） | 冷启动瞬间可视高度（`innerHeight` / `visualViewport`）还是旧值/0；早先只写一次 `--app-h`，页面定格在偏小高度 | `measureAppHeight()` 返回 `null` 表示“没量准，继续等”，`settleAppHeight()` 补测 |
 
 环境判断的边界：
@@ -118,6 +119,15 @@ build 17 把两者混用（UI 也走 `contentInsets`），`safe.top` 归零 → 
 
 - **游戏内**：☰ → 系统 → 环境诊断。PWA 独立窗口没有地址栏，这是唯一可行的入口；显示浏览器环境 + 游戏实际排版结果，右上角 ⧉ 一键复制。
 - **浏览器标签页**：打开 `/diag.html`。该页在 `sw.js` 里走 `networkFirst`，保证永远是服务端最新的一份；其它资源是 cacheFirst。
+
+### 2.5 iPhone 15 Pro
+
+| 方向 | 视口 / 注入安全区 | UI 处理 |
+|---|---|---|
+| 竖屏 | 393×852，`59/0/34/0` | HUD 从 top 59 起；左右无让出 |
+| 横屏 | 852×393，`0/59/21/59` | HUD 日期从 left 59 + pad 起；☰ / 体力 / 金币收进 right 59；摇杆和互动键左右也让 59 |
+
+横屏的左右 59px 与底部 21px 只影响 UI；相机仍铺满整块画布。e2e 有 iPhone 15 Pro 横竖屏用例，断言 HUD / ☰ / 摇杆 / 互动键都在安全区内，且相机取景比例等于屏幕比例。
 
 ## 3. 竖屏提示条
 
@@ -162,5 +172,5 @@ build 17 把两者混用（UI 也走 `contentInsets`），`safe.top` 归零 → 
 ## 6. 测试覆盖速查
 
 - **单测** [tests/unit/](../tests/unit/)：作物状态机、经济、NPC 好感、存档 normalize/迁移、layout 不变量、安全区、viewport 让出、env 诊断。
-- **e2e** [tests/e2e/](../tests/e2e/)：核心循环、存档写入 → reload 逐字段、断网、深层子路径 0 404、6 种视口自适应、dpr 2/3 面板与 ✕、运行中旋转、触控面板、竖屏提示、安全区注入、环境诊断。
+- **e2e** [tests/e2e/](../tests/e2e/)：核心循环、存档写入 → reload 逐字段、断网、深层子路径 0 404、6 种视口自适应、dpr 2/3 面板与 ✕、运行中旋转、触控面板、面板遮罩全屏/点外关闭、体力条缩短、竖屏提示、安全区注入、iPhone 15 Pro 横竖屏左右安全区、环境诊断。
 - **live-check**：6 个视口 + 1 次旋转；检查 `panelCss` / `closedByX` / `actOpens` / `noScroll` / `joyLeftBottom` / `actRightBottom` / `noErrors`。URL 必须显式传入，不写入仓库。

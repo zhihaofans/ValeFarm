@@ -2,9 +2,7 @@
 // 全部纯函数：改 World，返回结果对象供 UI 提示，不碰 Phaser。
 
 import { CROPS } from './data';
-import {
-  ENERGY, FARM_W,
-} from './config';
+import { ENERGY } from './config';
 import { plotAt } from './world';
 import type { CropId, Plot, Quality, World } from './types';
 
@@ -63,7 +61,11 @@ export function doPlant(w: World, x: number, y: number, crop: CropId): ActionRes
   if (!def.seasons.includes(w.season)) return fail(`${def.name}不能在当前季节种植`);
   if (!spendEnergy(w, ENERGY.plant)) return fail('体力不够了…');
   w.inventory['seed:' + crop] = inv - 1;
-  p.crop = { type: crop, stage: 0, progress: 0, dryDays: 0, wateredToday: false, withered: false };
+  // 雨天/刚浇过水的土地：新苗当天就算浇过水，否则玩家会碰到
+  // 「下雨天种下去 → 浇水被拒 → 当晚不生长」的死角。
+  const wet = w.weather === 'rain' || p.state === 'watered';
+  p.crop = { type: crop, stage: 0, progress: 0, dryDays: 0, wateredToday: wet, withered: false };
+  if (wet) p.state = 'watered';
   return done(`种下了${def.name}`, ENERGY.plant);
 }
 
@@ -115,15 +117,4 @@ export function qualityOf(c: Plot['crop']): Quality {
     return Math.random() < 0.35 ? 'sil' : 'norm';
   }
   return 'norm';
-}
-
-/** 一排地块（升级锄头的横向 3 格 / 水壶 3 格），供场景调用 */
-export function rowTargets(cx: number, cy: number, horizontal: boolean): Array<[number, number]> {
-  const out: Array<[number, number]> = [];
-  for (let d = -1; d <= 1; d++) {
-    const x = horizontal ? cx + d : cx;
-    const y = horizontal ? cy : cy + d;
-    if (x >= 0 && y >= 0 && x < FARM_W && y < 9999) out.push([x, y]);
-  }
-  return out;
 }

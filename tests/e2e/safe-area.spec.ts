@@ -8,10 +8,10 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /** 注入安全区并等待 UI 重建完（UIScene 每帧检测到变化会重建 HUD / 按钮） */
-async function injectSafe(page: Page, top: number, bottom: number): Promise<void> {
-  await page.evaluate(([t, b]) => {
-    (window as unknown as any).__valeSafeInsets = { top: t, right: 0, bottom: b, left: 0 };
-  }, [top, bottom] as const);
+async function injectSafe(page: Page, top: number, bottom: number, left = 0, right = 0): Promise<void> {
+  await page.evaluate(([t, b, l, r]) => {
+    (window as unknown as any).__valeSafeInsets = { top: t, right: r, bottom: b, left: l };
+  }, [top, bottom, left, right] as const);
   await page.waitForTimeout(500);
 }
 
@@ -25,42 +25,43 @@ async function readChrome(page: Page) {
     const hud = rects.map((r: any) => ({ top: (r.y - r.height / 2) / S, bottom: (r.y + r.height / 2) / S }))
       .sort((a: any, b: any) => b.bottom - a.bottom)[0];
     const menu = u.children.list.find((o: any) => o.type === 'Container' && o.depth === 852);
-    const mm = menu.getWorldTransformMatrix();
-    const h = (menu.input.hitArea.height * (menu.scaleY ?? 1)) / S;
+    // 用视觉包围盒而不是 input.hitArea：hitArea 是本地坐标，换算容易受 scale 影响
+    const mb = menu.getBounds();
     // 首行文字（日期）的实际渲染范围：这才是"看不看得清"的判据，
     // HUD 背景矩形让开安全区、但文字贴着背景上沿画，一样会被灵动岛压住（0.4.2 实拍）
     const day = u.dayText;
+    const act = u.children.list
+      .filter((o: any) => o.type === 'Arc' && o.depth === 850 && o.radius > 20)
+      .sort((a: any, b: any) => b.radius - a.radius)[0];
+    const joyRing = u.joy.radius * 1.5;
     return {
       hudTop: hud.top,
       hudBottom: hud.bottom,
       textTop: day.y / S,
       textBottom: (day.y + day.height) / S,
-      menuTop: (mm.ty - h / 2) / S,
-      menuBottom: (mm.ty + h / 2) / S,
+      dayLeft: day.x / S,
+      menuTop: mb.y / S,
+      menuBottom: (mb.y + mb.height) / S,
+      menuLeft: mb.x / S,
+      menuRight: (mb.x + mb.width) / S,
+      actLeft: (act.x - act.radius) / S,
+      actRight: (act.x + act.radius) / S,
+      actBottom: (act.y + act.radius) / S,
+      joyLeft: (u.joy.home.x - joyRing) / S,
+      joyRight: (u.joy.home.x + joyRing) / S,
+      view: (window as unknown as any).__valeView as { w: number; h: number },
       safe: { ...u.safe },
       dpr: S,
     };
   });
 }
 
-/** 底部动作键下沿（Arc，depth=850 里最大的那个圆） */
-async function readActionBottom(page: Page): Promise<number> {
-  return page.evaluate(() => {
-    const u = (window as unknown as any).__vale.scene.scene.get('ui');
-    const S = u.uiDpr as number;
-    // 动作键底图是 circle(0x3f7d5a)，摇杆底同色但是 depth 901，按半径挑最大的触摸层圆
-    const circles = u.children.list.filter((o: any) => o.type === 'Arc' && o.depth === 850 && o.radius > 20);
-    const act = circles.sort((a: any, b: any) => b.radius - a.radius)[0];
-    return (act.y + act.radius) / S;
-  });
-}
-
 for (const vp of [
-  { name: 'iPhone 15 竖屏（灵动岛 59 / Home 34）', width: 393, height: 852, top: 59, bottom: 34 },
-  { name: 'iPhone 15 横屏（顶部 0 / 底部 21）', width: 852, height: 393, top: 0, bottom: 21 },
-  { name: 'iPhone SE 横屏（无安全区）', width: 667, height: 375, top: 0, bottom: 0 },
+  { name: 'iPhone 15 Pro 竖屏（灵动岛 59 / Home 34）', width: 393, height: 852, top: 59, bottom: 34, left: 0, right: 0 },
+  { name: 'iPhone 15 Pro 横屏（左右 59 / 底部 21）', width: 852, height: 393, top: 0, bottom: 21, left: 59, right: 59 },
+  { name: 'iPhone SE 横屏（无安全区）', width: 667, height: 375, top: 0, bottom: 0, left: 0, right: 0 },
 ]) {
-  test(`${vp.name}：HUD 与 ☰ 都落在安全区之下，底部按钮在 Home 条之上`, async ({ browser }) => {
+  test(`${vp.name}：HUD / ☰ / 摇杆 / 互动键都在安全区内`, async ({ browser }) => {
     const ctx = await browser.newContext({
       viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 3, hasTouch: true, isMobile: true,
     });
@@ -68,16 +69,17 @@ for (const vp of [
     await page.goto('/');
     await page.waitForFunction(() => !!(window as unknown as any).__vale, null, { timeout: 30000 });
     await page.waitForTimeout(800);
-    await injectSafe(page, vp.top, vp.bottom);
+    await injectSafe(page, vp.top, vp.bottom, vp.left, vp.right);
 
     const c = await readChrome(page);
     expect(c.safe.top, '安全区应被读到（注入生效）').toBe(vp.top);
     expect(c.safe.bottom).toBe(vp.bottom);
+    expect(c.safe.left).toBe(vp.left);
+    expect(c.safe.right).toBe(vp.right);
     // HUD 底色**要**盖住安全区那一条（否则灵动岛旁边露出草地，像画面缺了一块），
     // 所以判据不是 hudTop，而是文字与 ☰ 的位置 —— 见下面的 textTop / menuTop。
     // ☰ 在 HUD 里，同样不能顶进安全区
     expect(c.menuTop, `☰ 顶边 ${c.menuTop.toFixed(1)} 落进了顶部安全区 ${vp.top}`).toBeGreaterThanOrEqual(vp.top - 0.5);
-    // ☰ 不能跑出屏幕右边
     expect(c.menuBottom).toBeGreaterThan(vp.top);
 
     // 首行文字必须整体在安全区之下，且与安全区之间至少 6px —— "能点但看不清"就是这个值太小
@@ -88,10 +90,19 @@ for (const vp of [
     // 文字不能溢出 HUD 背景（否则等于没有底色）
     expect(c.textBottom, '文字超出 HUD 底边').toBeLessThanOrEqual(c.hudBottom + 0.5);
 
-    const actBottom = await readActionBottom(page);
+    // 横屏时左右是灵动岛/圆角：HUD 日期、☰、互动键、摇杆都不能压进去
+    expect(c.dayLeft, `HUD 日期 x=${c.dayLeft.toFixed(1)} 压进左侧安全区 ${vp.left}`).toBeGreaterThanOrEqual(vp.left + 6 - 0.5);
+    expect(c.menuLeft, `☰ 左边缘 ${c.menuLeft.toFixed(1)} 压进左侧安全区 ${vp.left}`).toBeGreaterThanOrEqual(vp.left - 0.5);
+    expect(c.menuRight, `☰ 右边缘 ${c.menuRight.toFixed(1)} 超出右侧安全区`).toBeLessThanOrEqual(vp.width - vp.right + 0.5);
+    expect(c.actLeft).toBeGreaterThanOrEqual(vp.left - 0.5);
+    expect(c.actRight, `互动键右边缘 ${c.actRight.toFixed(1)} 超出右侧安全区`).toBeLessThanOrEqual(vp.width - vp.right + 0.5);
+    expect(c.joyLeft, `摇杆左边缘 ${c.joyLeft.toFixed(1)} 压进左侧安全区 ${vp.left}`).toBeGreaterThanOrEqual(vp.left - 0.5);
+    expect(c.joyRight).toBeLessThanOrEqual(vp.width - vp.right + 0.5);
+    // 相机必须铺满整块画布：如果按安全区裁 viewport，横屏左右/底部会露黑边
+    expect(c.view.w / c.view.h, '相机取景比例不等于屏幕比例（露黑边/变形）').toBeCloseTo(vp.width / vp.height, 2);
     expect(
-      actBottom,
-      `动作键下沿 ${actBottom.toFixed(1)} 压到了底部安全区（屏幕高 ${vp.height}，安全区 ${vp.bottom}）`,
+      c.actBottom,
+      `动作键下沿 ${c.actBottom.toFixed(1)} 压到了底部安全区（屏幕高 ${vp.height}，安全区 ${vp.bottom}）`,
     ).toBeLessThanOrEqual(vp.height - vp.bottom + 0.5);
 
     await ctx.close();

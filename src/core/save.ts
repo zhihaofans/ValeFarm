@@ -116,8 +116,8 @@ export function normalizeWorld(raw: unknown): World {
       const m = int(o.minute, base.minute);
       return m >= 0 && m <= 1560 ? m : base.minute;
     })(),
-    // season —— 必须登记
-    season: (num(o.season, base.season) % 4) as Season,
+    // season —— 必须登记（脏档里的 2.5 / -1 也要落到 0..3 的合法季节）
+    season: (((int(o.season, base.season) % 4) + 4) % 4) as Season,
     // weather —— 必须登记
     weather: (o.weather === 'rain' ? 'rain' : 'sun') as Weather,
     // gold —— 必须登记

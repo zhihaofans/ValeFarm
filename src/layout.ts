@@ -15,7 +15,7 @@
 //   地图在物理上就是等比缩小（地块变方变小的同时还能看见更多格子），
 //   而屏幕下方仍是同一块世界，等于把安全区里那些格子白送掉。
 //   正确做法是「地图照铺满、可见区域照满屏，只让 UI 元素躲开安全区」，
-//   具体在 UIScene（HUD 下移、底部按钮上抬）与 GameScene（相机视口内缩）里做。
+//   具体在 UIScene（HUD 下移、底部/左右按钮让开）里做；GameScene 相机保持整块画布。
 
 /** 横屏设计基准高（world units）。24×16 地图 = 768×512 world px */
 export const BASE_H = 450;
@@ -178,10 +178,12 @@ export function isIosDevice(): boolean {
  * 而 `apple-mobile-web-app-status-bar-style=black-translucent` 又让内容铺到状态栏下面。
  * 两者叠加的结果就是：HUD 跑进状态栏、底部按钮压在 Home 条上（0.4.2 用户实拍图二）。
  *
- * 取值依据：iPhone 全面屏状态栏 47~62px（灵动岛机型更高）、Home 指示条 34px。
+ * 取值依据：iPhone 全面屏竖屏状态栏 47~62px（灵动岛机型更高）、Home 指示条 34px；
+ * 横屏时状态栏/灵动岛在左右两侧，安全区是左右各 59px、底部 21px。
  * 只在「独立模式 + iOS + env() 读出来是 0」时启用，所以不会和真实值打架。
  */
-const IOS_PWA_FALLBACK: SafeInsets = { top: 59, right: 0, bottom: 34, left: 0 };
+const IOS_PWA_FALLBACK_PORTRAIT: SafeInsets = { top: 59, right: 0, bottom: 34, left: 0 };
+const IOS_PWA_FALLBACK_LANDSCAPE: SafeInsets = { top: 0, right: 59, bottom: 21, left: 59 };
 
 /** 当前生效的安全区（CSS 像素）：测试注入 > env() > iOS 独立模式兜底 */
 export function currentSafeInsets(viewH: number = window.innerHeight): SafeInsets {
@@ -194,7 +196,9 @@ export function currentSafeInsets(viewH: number = window.innerHeight): SafeInset
   // 只要读到任意一条边就认为 env() 是工作的，不再叠经验值。
   const envWorks = raw.top > 0 || raw.bottom > 0 || raw.left > 0 || raw.right > 0;
   if (!envWorks && isIosDevice() && isStandaloneApp()) {
-    return effectiveSafeInsets(IOS_PWA_FALLBACK, viewH);
+    // 横屏的刘海/灵动岛在左右两侧，不能用竖屏的 top/bottom 兜底
+    const landscape = (window.innerWidth || 0) > viewH;
+    return effectiveSafeInsets(landscape ? IOS_PWA_FALLBACK_LANDSCAPE : IOS_PWA_FALLBACK_PORTRAIT, viewH);
   }
   return effectiveSafeInsets(raw, viewH);
 }
@@ -235,13 +239,9 @@ export function viewportTopAlreadyInset(viewH: number, insets: SafeInsets, scree
  *   - 顶部已让开 → top 归 0（别再让第二遍），其余边原样
  *   - 顶部没让开 → 原样返回 env 值（旧行为）
  *
- * ⚠️ 只用于 **相机取景**（GameScene.safePx）：
- * 相机是在「可视区」里再切一块出来取景，视口已让开时再切一刀，等于把地图白裁掉一条，
- * 反正那 59px 本来就不在可视区里、也没被挡住。
- *
- * **UI 绝对不能用它** —— HUD 是"盖"上去的，不用它盖住状态栏那一条，
- * 状态栏文字（时钟 / 信号）就直接被 HUD 底色糊掉了（0.4.2 build 17 真机实拍）。
- * UI 用 uiInsets()。
+ * 现在**不再用于相机取景**：相机保持整块画布，否则横屏左右/底部会露黑边。
+ * uiInsets 只用它算底部/左右；top 由 hudBandTop 永远保留 env(top) 覆盖状态栏。
+ * 保留这套判据给诊断/测试与后续需要「在可视区内再切一块」的场景。
  */
 export function contentInsets(raw: SafeInsets, viewH: number, screenH: number): SafeInsets {
   if (!viewportTopAlreadyInset(viewH, raw, screenH)) return { ...raw };

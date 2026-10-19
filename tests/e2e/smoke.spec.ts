@@ -150,6 +150,17 @@ test.describe('核心循环（种—浇—收—卖—买）', () => {
     expect(goldAfter).toBe(goldBefore - 20);
     expect(seeds).toBeGreaterThanOrEqual(7);
   });
+
+  test('HUD 体力条随体力缩短（Shape 必须 setSize）', async ({ page }) => {
+    await page.evaluate(() => { (window as unknown as any).__vale.world.energy = 10; });
+    await page.waitForTimeout(150);
+    const m = await page.evaluate(() => {
+      const u = (window as unknown as any).__vale.scene.scene.get('ui');
+      return { width: u.energyBar.width, geom: u.energyBar.geom.width, max: u.energyBarMaxW };
+    });
+    expect(m.width).toBeCloseTo(m.max * 0.1, 1);
+    expect(m.geom, '只改 .width 不会重算 geom，体力条视觉上不会缩短').toBeCloseTo(m.max * 0.1, 1);
+  });
 });
 
 test.describe('存档', () => {

@@ -7,8 +7,7 @@
 //   852 - 59      = 793 ✅  → 顶部让开了
 //   852 - 59 - 34 = 759 ❌  → 底部**没有**让
 //
-// 所以判据只能看 top：
-//   - 相机取景（contentInsets）：顶部已让开 → 别再裁一刀
+// 这套判据现在不再用于相机（相机铺满整块画布）；保留 contentInsets 作 uiInsets 的辅助/历史判据。
 //   - UI 覆盖层（uiInsets）：那 59px 仍要被 HUD 底色盖住，top 永远不让出
 //   - 底部始终要按 34 让（Home 条那块还在可视区内）
 //
@@ -80,7 +79,7 @@ describe('contentInsets', () => {
 // build 17 真机："顶部状态栏看都看不到了"。
 // 根因：UI 也用了 contentInsets，把 top 归零 → HUD 底色只盖住屏幕 0~45px，
 // 状态栏那排白字正好落在里面被糊掉。UI 与相机必须分开算：
-//   相机 = 在可视区里再裁一块 → 视口已让开时不必再裁（contentInsets）
+//   相机 = 铺满整块画布，不裁 viewport
 //   UI   = 盖在屏幕上的东西       → 那 59px 仍要盖住，top 永远不让出（uiInsets）
 describe('uiInsets / hudBandTop（UI 专用口径）', () => {
   it('iOS PWA 实测：即使用户觉得视口已让开，UI 的 top 仍是 59 —— 状态栏要盖住', () => {
@@ -88,8 +87,8 @@ describe('uiInsets / hudBandTop（UI 专用口径）', () => {
     expect(ui.top).toBe(59);
   });
 
-  it('底部沿用相机口径：视口已让开就不再让（793 = 852-59 已含底部）', () => {
-    // 这里保持 34 是因为 contentInsets 只按 top 判定，bottom 原样 —— 与相机取景一致
+  it('底部仍按 env 让：视口已让开也不归零', () => {
+    // 这里保持 34 是因为 contentInsets 只按 top 判定，bottom 原样
     expect(uiInsets(IPHONE.env, 793, IPHONE.screenH).bottom).toBe(34);
   });
 

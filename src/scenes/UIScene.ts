@@ -34,6 +34,8 @@ export class UIScene extends Phaser.Scene {
   private seedBtn!: Phaser.GameObjects.Container;
   private seedIcon!: Phaser.GameObjects.Image;
   private seedText!: Phaser.GameObjects.Text;
+  /** 当前动作键底图，供只注册一次的 pointerup 复位使用 */
+  private actBg?: Phaser.GameObjects.Arc;
   private toastObj?: Phaser.GameObjects.Text;
   private toastTimer?: Phaser.Time.TimerEvent;
   private panelOpen = false;
@@ -52,9 +54,13 @@ export class UIScene extends Phaser.Scene {
 
   create(): void {
     this.gameScene = this.scene.get('game') as GameScene;
+    // 音效开关在启动时就要生效（audio 模块默认开启）
+    setSfxEnabled(this.settings.sfx);
     // UI 场景用「CSS 像素」作单位：相机 zoom 按 dpr 反向缩放，HUD 就能用 390/844 这种数字排版
     this.setupUiCamera();
     this.joy = new Joystick(this);
+    // 只注册一次：重建按钮时只换 actBg，不再往 input 上叠加监听器
+    this.input.on('pointerup', () => this.actBg?.setScale(1));
     this.buildHud();
     this.buildButtons();
 
@@ -75,8 +81,12 @@ export class UIScene extends Phaser.Scene {
     // 一次转屏可能连发多个 resize，合并到下一帧统一重建，避免闪烁
     if (this.resizeTimer) this.resizeTimer.remove();
     this.resizeTimer = this.time.delayedCall(60, () => {
+      // 定时器执行完必须清掉：否则 update() 里的 `if (this.resizeTimer) return;`
+      // 会永久跳过安全区检测，转屏后 env() 晚到就再也纠正不了。
+      this.resizeTimer = undefined;
       const wasPanelOpen = this.panelOpen;
       this.closeTopPanel();
+      this.joy?.destroy();
       this.children.removeAll(true);
       this.setupUiCamera();
       this.joy = new Joystick(this);
@@ -105,6 +115,7 @@ export class UIScene extends Phaser.Scene {
 
   /** 只重建「贴着屏幕边」的那几块（HUD / 按钮 / 摇杆），面板与提示保持不动 */
   private rebuildChrome(): void {
+    this.joy?.destroy();
     for (const o of [...this.children.list]) {
       const d = (o as Phaser.GameObjects.GameObject & { depth: number }).depth;
       // hud / buttons / joystick 三层重画；面板(1000+)、提示(1100) 原样留着
@@ -117,9 +128,7 @@ export class UIScene extends Phaser.Scene {
     // 面板遮罩是按旧视口尺寸铺的，尺寸变了可能盖不满 → 跟着重铺
     const panel = this.activePanel;
     if (panel) {
-      const cy = this.panelCenterY(panel.h);
-      panel.root.setPosition(this.vw / 2, cy);
-      panel.resizeShade?.(this.vw, this.vh, cy);
+      panel.resizeShade(this.vw, this.vh, this.panelCenterY(panel.h));
     }
   }
 
@@ -177,7 +186,8 @@ export class UIScene extends Phaser.Scene {
 
   /** 把刚建好的面板摆到居中位置（makePanel 建时先按几何中心，这里再校准） */
   private placePanel(panel: Panel): void {
-    panel.root.setPosition(this.vw / 2, this.panelCenterY(panel.h));
+    // 同时校准遮罩：root 下移后，遮罩要补回屏幕中心（见 widgets.makePanel）
+    panel.resizeShade(this.vw, this.vh, this.panelCenterY(panel.h));
   }
 
   /**
@@ -208,6 +218,15 @@ export class UIScene extends Phaser.Scene {
     // 用画布 CSS 高度而不是 innerHeight：画布才是真正被看见的那块，
     // 且它已经被 --app-h / 100dvh 校准过，比 innerHeight 可信。
     return uiInsets(raw, this.scale.height / this.DP, h);
+  }
+
+  /** 安全区左右（画布像素），横屏的灵动岛/圆角要用 */
+  private get safeLeftPx(): number {
+    return this.safe.left * this.DP;
+  }
+
+  private get safeRightPx(): number {
+    return this.safe.right * this.DP;
   }
 
   /** 安全区下沿（画布像素），底部按钮要用 */
@@ -254,7 +273,10 @@ export class UIScene extends Phaser.Scene {
     const HUD_H_CSS = Math.round(lines * lineH + padY * 2);
 
     const pad = (compact ? 10 : 14) * S;
-    // 安全区（CSS 像素）与设计值同量纲，乘 S 后即为画布偏移
+    // 安全区（CSS 像素）与设计值同量纲，乘 S 后即为画布偏移。
+    // 横屏时 left/right 是灵动岛/圆角，HUD 内容不能压进去（top/bottom 只解决上下）。
+    const leftPx = this.safeLeftPx;
+    const rightPx = this.safeRightPx;
     const topPx = this.safe.top * S;
     const hudH = HUD_H_CSS * S;
     this.hudHCss = HUD_H_CSS;
@@ -272,19 +294,24 @@ export class UIScene extends Phaser.Scene {
 
     // 文字锚点统一 origin(0,0)（左上）：只给 y 起点，垂直位置由 padY 保证，
     // 不再用 fontSize 的倍数去猜（那种猜法在字号一变就会顶到遮挡边）。
-    this.dayText = this.add.text(pad, ty, '', {
+    this.dayText = this.add.text(leftPx + pad, ty, '', {
       fontSize: `${fs * S}px`, color: '#f4ead8', fontFamily: 'sans-serif',
     }).setScrollFactor(0).setDepth(UI_DEPTH.hud + 1);
 
     // 竖屏时时间另起一行（在日期下面），横屏时靠右排在同一行
-    this.timeText = this.add.text(compact ? pad : 150 * S, compact ? ty + lineH * S : ty, '', {
-      fontSize: `${(compact ? sub : fs) * S}px`,
-      color: compact ? '#c9a06b' : '#f4ead8', fontFamily: 'sans-serif',
-    }).setScrollFactor(0).setDepth(UI_DEPTH.hud + 1);
+    this.timeText = this.add.text(
+      compact ? leftPx + pad : leftPx + 150 * S,
+      compact ? ty + lineH * S : ty,
+      '',
+      {
+        fontSize: `${(compact ? sub : fs) * S}px`,
+        color: compact ? '#c9a06b' : '#f4ead8', fontFamily: 'sans-serif',
+      },
+    ).setScrollFactor(0).setDepth(UI_DEPTH.hud + 1);
 
-    // 天气 + 金币：贴在右侧体力条左边，按可用宽度反推位置
+    // 天气 + 金币：贴在右侧体力条左边，按可用宽度反推位置；右侧同样要让开安全区
     const barW = compact ? W * 0.24 : 160 * S;
-    const energyX = W - pad - barW - (compact ? 34 * S : 52 * S);
+    const energyX = W - rightPx - pad - barW - (compact ? 34 * S : 52 * S);
     const coinX = energyX - (compact ? 74 * S : 118 * S);
     // 图标与文字视觉中线对齐：文字从 ty 起、行高 lineH
     const midY = ty + (lineH * S) / 2;
@@ -321,7 +348,8 @@ export class UIScene extends Phaser.Scene {
     this.goldText.setText(String(w.gold));
     this.weatherIcon.setFrame(w.weather === 'rain' ? UI.rain : UI.sun);
     const ratio = Phaser.Math.Clamp(w.energy / w.maxEnergy, 0, 1);
-    this.energyBar.width = Math.max(0, this.energyBarMaxW * ratio);
+    // Shape 的渲染走 geom/pathData：直接改 .width 不会重算，必须 setSize
+    this.energyBar.setSize(Math.max(0, this.energyBarMaxW * ratio), this.energyBar.height);
     this.energyBar.fillColor = ratio < 0.3 ? 0xd9534f : ratio < 0.6 ? 0xf2c53d : 0x6cbf4a;
     this.energyText.setText(`${Math.ceil(w.energy)}/${w.maxEnergy}`);
     this.syncSeedBtn();
@@ -360,13 +388,16 @@ export class UIScene extends Phaser.Scene {
     const S = this.DP;
     const shortCss = Math.min(W, H) / S;
     const pad = Math.max(10, Math.min(24, shortCss * 0.045)) * S;
+    // 横屏时安全区在左右（灵动岛 / 圆角），按钮不能压进去
+    const leftPx = this.safeLeftPx;
+    const rightPx = this.safeRightPx;
     // 底部安全区（iPhone 小白条 / 手势区）：按短边封顶 22
     const safeBottom = Math.min(22, shortCss * 0.06) * S;
     // 系统安全区（Home 指示条 / 手势条）比自己估的还大时要按它来，
     // 否则按钮会压在指示条上 —— iOS 会把上滑手势抢走，按了没反应
     const bottom = Math.max(pad, safeBottom, this.safeBottomPx + pad * 0.5);
     const actR = Phaser.Math.Clamp(shortCss * 0.105, 30, 58) * S;
-    const actX = W - pad - actR;
+    const actX = W - rightPx - pad - actR;
     // 底部对齐：按钮下沿离屏幕底 = bottom，和摇杆的视觉基线一致
     const baseY = H - bottom;
     const actY = baseY - actR;
@@ -375,7 +406,7 @@ export class UIScene extends Phaser.Scene {
     const joyR = Math.min(actR * 1.15, shortCss * 0.14 * S);
     // 光圈半径 = 1.5r。让「光圈外缘」而不是圆心对齐到 pad 内边
     const joyRing = joyR * 1.5;
-    const joyX = Math.max(pad + joyRing, joyRing + 4 * S);
+    const joyX = Math.max(leftPx + pad + joyRing, joyRing + 4 * S);
     // 底部对齐：光圈外缘也在 baseY 上，和动作键同一基线
     const joyY = baseY - joyRing;
 
@@ -383,6 +414,7 @@ export class UIScene extends Phaser.Scene {
     // 之前图标用 buttons+1，和 ☰ 的命中区在右上角重叠，结果"点菜单变成做动作"。
     const actBg = this.add.circle(actX, actY, actR, 0x3f7d5a, 0.92)
       .setStrokeStyle(3 * S, 0xffffff, 0.5).setScrollFactor(0).setDepth(UI_DEPTH.buttons);
+    this.actBg = actBg;
     this.add.image(actX, actY, 'ui', UI.hoe_up)
       .setScrollFactor(0).setDepth(UI_DEPTH.buttons).setScale((actR / 52) * 1.5);
     this.add.text(actX, actY + actR * 0.62, '互动', {
@@ -396,7 +428,6 @@ export class UIScene extends Phaser.Scene {
       actBg.setScale(0.92);
       this.gameScene.doAction();
     });
-    this.input.on('pointerup', () => actBg.setScale(1));
 
     // 种子槽：动作键左侧一排（参考图的物品栏位置），点按切换
     const slot = Phaser.Math.Clamp(actR * 1.24, 44 * S, 74 * S);
@@ -439,7 +470,7 @@ export class UIScene extends Phaser.Scene {
     const sysW = Phaser.Math.Clamp(sysH * 1.25, 40, 64);
     const sysBtn = textButton(
       this,
-      (W - 6 * S - sysW * S / 2) / S, midY,
+      (W - rightPx - 6 * S - sysW * S / 2) / S, midY,
       sysW, sysH, '☰',
       () => this.openSystem(), { bg: 0x5b5044, fontSize: Math.round(sysH * 0.5) },
     );
@@ -480,6 +511,10 @@ export class UIScene extends Phaser.Scene {
     // 垂直居中（用户要求）：按 HUD 之下的可用区居中，而不是整块画布的几何中心
     const cy = this.panelCenterY(boxH / S);
     const holder = this.add.container(0, 0).setScrollFactor(0).setDepth(UI_DEPTH.toast + 2);
+    // 和 makePanel 一样：记录提示创建时已按下的指针，避免「点 ☰ → 提示弹出 → 抬手」
+    // 被 backdrop 当成点外部而立刻关掉。
+    const preDown = new Set<Phaser.Input.Pointer>();
+    for (const p of this.input.manager.pointers) if (p.isDown) preDown.add(p);
     // 四周压一层很淡的遮罩：只为"点面板外也能关"，不抢游戏观感
     const backdrop = this.add.rectangle(cx, cy, W * 2, this.vh * 2, 0x000000, 0.35).setInteractive();
     const box = this.add.rectangle(cx, cy, boxW, boxH, 0x2a241c, 0.98)
@@ -501,7 +536,10 @@ export class UIScene extends Phaser.Scene {
     }).setOrigin(0.5);
     const close = () => this.dismissTip();
     btnBg.on('pointerdown', close);
-    backdrop.on('pointerup', close);
+    backdrop.on('pointerup', (p: Phaser.Input.Pointer) => {
+      if (preDown.has(p)) { preDown.delete(p); return; }
+      close();
+    });
     holder.add([backdrop, box, msg, btnBg, btnTxt]);
     this.tipObj = holder;
     // 不自动淡出：用户没看见就等于没提示
@@ -697,9 +735,18 @@ export class UIScene extends Phaser.Scene {
   }
 
   private openGiftPicker(npcId: string): void {
+    // 先把 NPC 对话面板关掉：否则两个 modal 叠加，activePanel 会指向已销毁的
+    // 选择器，closeTopPanel() 可能在对话还可见时就解除暂停。
+    this.activePanel?.close();
+    this.panelOpen = true;
+    this.pauseGame(true);
     const w = this.gameScene.world;
     const entries = cropEntries(w.inventory);
-    const panel = makePanel(this, '送什么好呢？');
+    const panel = makePanel(this, '送什么好呢？', () => {
+      this.panelOpen = false;
+      this.pauseGame(false);
+      this.activePanel = null;
+    });
     this.activePanel = panel;
     this.placePanel(panel);
     let y = 40;

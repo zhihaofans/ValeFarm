@@ -17,10 +17,11 @@ function openDB(): Promise<IDBDatabase> {
 }
 
 export async function idbGet(key: string): Promise<string | null> {
+  let value: string | null = null;
   try {
     const db = await openDB();
     try {
-      return await new Promise<string | null>((resolve, reject) => {
+      value = await new Promise<string | null>((resolve, reject) => {
         const tx = db.transaction('saves', 'readonly');
         const req = tx.objectStore('saves').get(key);
         req.onsuccess = () => resolve((req.result as string) ?? null);
@@ -30,9 +31,12 @@ export async function idbGet(key: string): Promise<string | null> {
       db.close();
     }
   } catch {
-    // 降级：localStorage 兜底（隐私模式 / IDB 被禁）
-    try { return localStorage.getItem('vale-farm.idb.' + key); } catch { return null; }
+    // IDB 不可用（隐私模式 / 被禁）：走下面的 localStorage 兜底
   }
+  if (value !== null) return value;
+  // IDB 成功但 key 不存在时也要查兜底：上一次写档可能因 IDB 临时失败落到了 localStorage，
+  // 只在 catch 里查会把那份存档静默丢掉。
+  try { return localStorage.getItem('vale-farm.idb.' + key); } catch { return null; }
 }
 
 export async function idbSet(key: string, value: string): Promise<boolean> {

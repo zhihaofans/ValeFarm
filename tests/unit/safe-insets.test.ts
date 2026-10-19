@@ -13,9 +13,11 @@ function stubEnv(opts: {
   displayModeStandalone?: boolean;
   maxTouchPoints?: number;
   viewH?: number;
+  viewW?: number;
 }) {
   const win = {
     innerHeight: opts.viewH ?? 852,
+    innerWidth: opts.viewW ?? 393,
     matchMedia: (q: string) => ({
       matches: q === '(display-mode: standalone)' ? !!opts.displayModeStandalone : false,
     }),
@@ -63,6 +65,15 @@ describe('currentSafeInsets：iOS PWA 兜底', () => {
     const s = currentSafeInsets(852);
     expect(s.top).toBe(59);
     expect(s.bottom).toBe(34);
+  });
+
+  it('iOS 独立窗口横屏 + env() 全 0 → 左右让出灵动岛/圆角，底部只让 21', async () => {
+    stubEnv({
+      env: { top: 0, right: 0, bottom: 0, left: 0 }, ua: UA_IPHONE,
+      standalone: true, viewW: 852, viewH: 393,
+    });
+    const { currentSafeInsets } = await import('../../src/layout');
+    expect(currentSafeInsets(393)).toEqual({ top: 0, right: 59, bottom: 21, left: 59 });
   });
 
   it('navigator.standalone 缺失但 display-mode:standalone 命中时同样兜底', async () => {

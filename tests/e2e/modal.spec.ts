@@ -3,6 +3,44 @@ import { expect, test } from '@playwright/test';
 
 test.use({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 3 });
 
+test('面板遮罩铺满整屏：左上角点外也能关闭', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as unknown as any).__vale, null, { timeout: 30000 });
+  await page.waitForTimeout(1200);
+
+  const m = await page.evaluate(() => {
+    const u = (window as unknown as any).__vale.scene.scene.get('ui');
+    const p = u.activePanel;
+    const shade = p.root.list.find(
+      (o: any) => o.type === 'Rectangle' && Math.abs((o.fillAlpha ?? 0) - 0.6) < 0.01,
+    );
+    const b = shade.getBounds();
+    return {
+      open: !!u.panelOpen,
+      x: b.x / u.uiDpr,
+      y: b.y / u.uiDpr,
+      w: b.width / u.uiDpr,
+      h: b.height / u.uiDpr,
+      vw: u.vw / u.uiDpr,
+      vh: u.vh / u.uiDpr,
+    };
+  });
+
+  expect(m.open, '首屏应有晨报面板').toBe(true);
+  // 遮罩的世界包围盒必须覆盖整个屏幕，而不是只压在右下角
+  expect(m.x, '遮罩左边缘未到屏幕左边').toBeLessThanOrEqual(0.5);
+  expect(m.y, '遮罩上边缘未到屏幕顶部').toBeLessThanOrEqual(0.5);
+  expect(m.x + m.w, '遮罩右边缘未到屏幕右边').toBeGreaterThanOrEqual(m.vw - 0.5);
+  expect(m.y + m.h, '遮罩下边缘未到屏幕底部').toBeGreaterThanOrEqual(m.vh - 0.5);
+
+  // 面板在屏幕中间；左上角外侧必须被遮罩接住并关闭
+  const box = (await page.locator('#game canvas').boundingBox())!;
+  await page.touchscreen.tap(box.x + 20, box.y + 200);
+  await page.waitForTimeout(300);
+  const open = await page.evaluate(() => !!(window as unknown as any).__vale.scene.scene.get('ui').panelOpen);
+  expect(open, '点面板左上角外侧应关闭').toBe(false);
+});
+
 test('面板：✕ 可点、按钮可点、背景摇杆被锁', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => !!(window as unknown as any).__vale, null, { timeout: 30000 });

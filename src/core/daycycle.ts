@@ -66,11 +66,13 @@ export function applyRain(w: World): void {
  */
 export function endDay(w: World, collapsed: boolean): DayReport {
   const prevSeason = w.season;
-  const withered = advanceCrops(w);
 
+  // 先把日期/季节推进到「新的一天」，再结算作物：
+  // 否则春末最后一晚会用旧季节判断枯萎，春作物会白活第一个夏天白天。
   w.day += 1;
   w.season = (Math.floor((w.day - 1) / SEASON_DAYS) % 4) as World['season'];
   const seasonChanged = w.season !== prevSeason;
+  const withered = advanceCrops(w);
 
   // 天气：雨天补水
   w.weather = Math.random() < RAIN_CHANCE ? 'rain' : 'sun';
