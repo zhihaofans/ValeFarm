@@ -6,7 +6,7 @@
 
 > 全部美术与音效由脚本程序化生成，不含任何第三方游戏的素材、名称、角色、音乐或文本。
 
-**线上地址**：<https://a3aec251faf00b52f.app.workbuddy.host>（当前 v0.4.2 / build 19）
+**当前版本**：v0.4.2 / build 19（以 [public/version.json](public/version.json) 为准）
 
 **文档导航**（都在 [`dev-docs/`](dev-docs/)，接手开发请从第一份读起）：
 
@@ -99,7 +99,7 @@ node tools/stamp.js --bump minor --note "本次改了什么"
 npm run test        # Vitest 单测（作物状态机 / 经济 / 存档 normalize / NPC）
 npm run test:e2e    # Playwright e2e（需要先 npm run build）
 
-node tools/live-check.mjs [URL]   # 线上冒烟：默认打已部署地址
+node tools/live-check.mjs https://example.com/   # 换成你的部署地址（地址不写入仓库）
 ```
 
 `tools/live-check.mjs` 是**发布后必跑**的一步，补 e2e 补不到的地方：e2e 跑本地 preview，而真机是 dpr=2/3。它对 6 种视口各开一个真触摸上下文，依次「收起建议卡片 → 点 ✕ 关晨报 → 走到 NPC 面前点互动键」，逐项断言：

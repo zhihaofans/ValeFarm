@@ -6,13 +6,17 @@
 //   本脚本对每个视口都用 CDP 真触摸走一遍「关晨报 → 点互动键」，
 //   并在 dpr 与视口都变化时逐条断言，出问题直接指出是哪一项。
 //
-// 用法：node tools/live-check.mjs [URL]
-//       默认 https://a3aec251faf00b52f.app.workbuddy.host/
+// 用法：node tools/live-check.mjs <URL>
+//       URL 必须显式传入 —— 仓库不记录任何部署地址。
 
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 
-const URL = process.argv[2] ?? 'https://a3aec251faf00b52f.app.workbuddy.host/';
+const URL = process.argv[2];
+if (!URL) {
+  console.error('用法：node tools/live-check.mjs <URL>');
+  process.exit(1);
+}
 const OUT = 'screenshots/live';
 
 const VPS = [

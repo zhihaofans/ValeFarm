@@ -210,10 +210,11 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 ### 线上冒烟
 
 ```bash
-node tools/live-check.mjs [URL]
+node tools/live-check.mjs https://example.com/
 ```
 
 对已部署地址跑 6 个视口 + 1 次转屏，每个视口都用 CDP 真触摸走一遍"关晨报 → 点互动键"。
+URL 由使用者显式传入，仓库不记录部署地址。
 
 ---
 
