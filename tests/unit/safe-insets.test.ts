@@ -14,6 +14,7 @@ function stubEnv(opts: {
   maxTouchPoints?: number;
   viewH?: number;
   viewW?: number;
+  statusBarStyle?: 'black' | 'default' | 'black-translucent';
 }) {
   const win = {
     innerHeight: opts.viewH ?? 852,
@@ -41,6 +42,9 @@ function stubEnv(opts: {
   vi.stubGlobal('document', {
     createElement: () => fakeEl,
     body: { appendChild() {} },
+    querySelector: (sel: string) => opts.statusBarStyle && sel.includes('status-bar')
+      ? { getAttribute: () => opts.statusBarStyle }
+      : null,
   });
   vi.stubGlobal('getComputedStyle', () => cs);
 }
@@ -101,6 +105,28 @@ describe('currentSafeInsets：iOS PWA 兜底', () => {
     const { currentSafeInsets } = await import('../../src/layout');
     const s = currentSafeInsets(852);
     expect(s.top).toBe(47);
+    expect(s.bottom).toBe(34);
+  });
+
+  it('black 不透明状态栏：env 有 top 时保留，不强行归零（避免状态栏样式尚未生效时反而钻到状态栏下）', async () => {
+    stubEnv({
+      env: { top: 59, right: 0, bottom: 34, left: 0 }, ua: UA_IPHONE, standalone: true,
+      statusBarStyle: 'black',
+    });
+    const { currentSafeInsets } = await import('../../src/layout');
+    const s = currentSafeInsets(793);
+    expect(s.top).toBe(59);
+    expect(s.bottom).toBe(34);
+  });
+
+  it('black 且 env() 全 0：兜底也不补 top', async () => {
+    stubEnv({
+      env: { top: 0, right: 0, bottom: 0, left: 0 }, ua: UA_IPHONE, standalone: true,
+      statusBarStyle: 'black',
+    });
+    const { currentSafeInsets } = await import('../../src/layout');
+    const s = currentSafeInsets(793);
+    expect(s.top).toBe(0);
     expect(s.bottom).toBe(34);
   });
 

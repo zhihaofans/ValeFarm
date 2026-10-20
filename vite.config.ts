@@ -1,8 +1,20 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
+
+// 只用于诊断显示：版本 / 构建号来自唯一数据源 public/version.json；
+// 构建时间是本次 dev server 启动或 build 的时间（每次重启 / 构建都会变）。
+const versionMeta = JSON.parse(
+  readFileSync(new URL('./public/version.json', import.meta.url), 'utf8'),
+) as { ver: string; build: string };
 
 // base: './' —— 全部产物相对路径，子目录部署（GitHub Pages 等）天然可用
 export default defineConfig({
   base: './',
+  define: {
+    __APP_VERSION__: JSON.stringify(versionMeta.ver),
+    __APP_BUILD__: JSON.stringify(versionMeta.build),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   build: {
     target: 'es2021',
     assetsInlineLimit: 0,

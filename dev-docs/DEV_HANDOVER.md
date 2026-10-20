@@ -30,7 +30,7 @@ npm run dev -- --host   # 手机同局域网调试（需 https 或 localhost 才
 
 npm run build        # 类型检查 + 构建 → docs/
 npm run preview      # 预览构建产物 :4173
-npm test             # 单元测试（vitest，73 条，秒级）
+npm test             # 单元测试（vitest，75 条，秒级）
 npm run test:e2e     # 端到端（playwright，38 条，约 50 秒）
 npm run package      # 打 zip（源码 + docs/）
 ```
@@ -135,7 +135,7 @@ iPhone 15 Pro 横屏（852×393）则是：`env(top/bottom) = 0/21`、`env(left/
 | 谁 | 怎么处理 | 为什么 |
 |---|---|---|
 | **相机取景**（`GameScene`） | **整块画布，不内缩** | 世界可以落到灵动岛/圆角下面，由硬件自然遮挡；按安全区裁 viewport 会在横屏左右/底部露黑边 |
-| **UI 覆盖层**（`UIScene`） | `uiInsets()`；top **永远不让出**，left/right/bottom 都让 | HUD 是"盖"上去的。`black-translucent` 让状态栏白字浮在网页上，HUD 底色必须铺到 y=0 盖住它，文字排到 59 之下；横屏左右是灵动岛/圆角，按钮和 HUD 必须收进去 |
+| **UI 覆盖层**（`UIScene`） | `uiInsets()`；left/right/bottom 让；top 由状态栏模式决定 | PWA 使用不透明 `black` 状态栏：网页从状态栏下方开始，`black` + `env()` 全 0 时 top 不再补 59；`black-translucent` 旧模式仍按 59 兜底。横屏左右是灵动岛/圆角，按钮和 HUD 必须收进去 |
 
 **用错的后果**：build 17 让 UI 也走 `contentInsets`，`safe.top` 归零 → HUD 底色只到 45px，
 状态栏那排白字落在里面被糊掉 → 用户反馈"顶部状态栏看都看不到了"。
@@ -186,7 +186,7 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 
 ## 6. 测试策略
 
-### 单元测试（73 条，`tests/unit/`）
+### 单元测试（75 条，`tests/unit/`）
 
 全是 `core/` 的纯函数，不碰浏览器。改了经济、存档、作物、NPC 逻辑必须保持绿。
 
@@ -271,6 +271,12 @@ dev-docs/    人写的文档。build 不会碰，随便加文件。
 ---
 
 ## 9. 已知技术债 / 接手后可以做的
+
+### 已知未修 bug
+
+| 症状 | 已确认的事实 | 后续排查建议 |
+|---|---|---|
+| iOS 27.0.1 + iPhone 15 Pro PWA **竖屏**顶部 HUD 被“玻璃”压灰，文字发暗；Safari 标签页、PWA 横屏正常 | ① 横屏时系统状态栏自动隐藏，所以正常；浏览器页面从状态栏下方开始（`env=0/safe=0`、HUD 文字顶边 9），PWA 竖屏 `innerHeight=793`、`safe.top=59`、HUD 文字顶边 68。② 游戏内面板遮罩已改为**全透明点击区**，诊断显示点击区 `109/743`，没有盖到 HUD；③ `apple-mobile-web-app-status-bar-style` 已从 `black-translucent` 改为 `black`，底部 59px 黑带消失，但顶部发灰仍在；④ 加粗/提亮 HUD 文字后仍被系统层压暗。结论：剩余是 **iOS 独立窗口顶部的系统状态栏/玻璃合成层**，不是 Phaser 的遮罩或 z-index 能覆盖的。 | 用**最小复现 PWA**（纯色背景 + 在 y=0/50/59/68/109/120 放彩色横条）重新添加到主屏，截图确定玻璃实际覆盖范围；分别测试 `default` / `black` / `black-translucent`、去掉 `viewport-fit=cover`、把 HUD 整体下移 20/40/60px，确认是“状态栏下方仍有一层材质”还是“整个顶部区域被压暗”。不要在未验证前继续改游戏遮罩。 |
 
 ### 明确的技术债
 

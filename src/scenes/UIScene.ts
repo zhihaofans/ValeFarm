@@ -128,7 +128,7 @@ export class UIScene extends Phaser.Scene {
     // 面板遮罩是按旧视口尺寸铺的，尺寸变了可能盖不满 → 跟着重铺
     const panel = this.activePanel;
     if (panel) {
-      panel.resizeShade(this.vw, this.vh, this.panelCenterY(panel.h));
+      panel.resizeShade(this.vw, this.vh, this.panelCenterY(panel.h), this.hudBottomCss * this.DP);
     }
   }
 
@@ -172,6 +172,8 @@ export class UIScene extends Phaser.Scene {
    * 别在外面按屏宽再猜一个 —— 猜的那份和真实排版一旦不一致，☰ 与 toast 就会错位。
    */
   private hudHCss = 0;
+  /** HUD 实际下沿（CSS 像素）：遮罩顶边绑定它，避免面板打开那一帧 safe/hud 还是旧值 */
+  private hudBottomCss = 0;
 
   /**
    * 面板 / 对话框的垂直中心（画布像素）。
@@ -186,8 +188,11 @@ export class UIScene extends Phaser.Scene {
 
   /** 把刚建好的面板摆到居中位置（makePanel 建时先按几何中心，这里再校准） */
   private placePanel(panel: Panel): void {
-    // 同时校准遮罩：root 下移后，遮罩要补回屏幕中心（见 widgets.makePanel）
-    panel.resizeShade(this.vw, this.vh, this.panelCenterY(panel.h));
+    // 遮罩只盖 HUD 以下：顶部状态栏/HUD 保持明亮，☰ 仍可点。
+    // 用 buildHud 缓存的 hudBottomCss，不在打开面板时重新读 safe：
+    // PWA 冷启动/转屏时 safe 可能短暂回 0，用实时值会把遮罩顶到 HUD 中间。
+    const cy = this.panelCenterY(panel.h);
+    panel.resizeShade(this.vw, this.vh, cy, this.hudBottomCss * this.DP);
   }
 
   /**
@@ -280,6 +285,7 @@ export class UIScene extends Phaser.Scene {
     const topPx = this.safe.top * S;
     const hudH = HUD_H_CSS * S;
     this.hudHCss = HUD_H_CSS;
+    this.hudBottomCss = this.safe.top + HUD_H_CSS;
 
     // 安全区那一条与 HUD 一起铺满，不留缝：两块同色同透明度，看起来是一条整体
     const bandH = topPx + hudH;
@@ -295,8 +301,9 @@ export class UIScene extends Phaser.Scene {
     // 文字锚点统一 origin(0,0)（左上）：只给 y 起点，垂直位置由 padY 保证，
     // 不再用 fontSize 的倍数去猜（那种猜法在字号一变就会顶到遮挡边）。
     this.dayText = this.add.text(leftPx + pad, ty, '', {
-      fontSize: `${fs * S}px`, color: '#f4ead8', fontFamily: 'sans-serif',
-    }).setScrollFactor(0).setDepth(UI_DEPTH.hud + 1);
+      fontSize: `${fs * S}px`, color: '#fff8e8', fontFamily: 'sans-serif', fontStyle: 'bold',
+    }).setScrollFactor(0).setDepth(UI_DEPTH.hud + 1)
+      .setShadow(0, 1 * S, '#000000', 2 * S, true, true);
 
     // 竖屏时时间另起一行（在日期下面），横屏时靠右排在同一行
     this.timeText = this.add.text(
@@ -309,15 +316,20 @@ export class UIScene extends Phaser.Scene {
       },
     ).setScrollFactor(0).setDepth(UI_DEPTH.hud + 1);
 
-    // 天气 + 金币：贴在右侧体力条左边，按可用宽度反推位置；右侧同样要让开安全区
+    // 天气 + 金币：贴在右侧体力条左边，按可用宽度反推位置；右侧同样要让开安全区。
+    // 竖屏要为右上 ☰ 留位：按钮宽 ~52.5 + 右边距 6，所以体力条右端再左收 60。
     const barW = compact ? W * 0.24 : 160 * S;
-    const energyX = W - rightPx - pad - barW - (compact ? 34 * S : 52 * S);
+    const energyX = W - rightPx - pad - barW - (compact ? 60 * S : 52 * S);
     const coinX = energyX - (compact ? 74 * S : 118 * S);
     // 图标与文字视觉中线对齐：文字从 ty 起、行高 lineH
     const midY = ty + (lineH * S) / 2;
+    // 窄于 380 CSS px（折叠屏外屏等）时隐藏天气图标：右侧已经被 ☰ 和体力条占满，
+    // 再画图标会和左侧加粗后的日期文字叠上；iPhone 15 Pro（393）不受影响。
+    const showWeather = W / S >= 380;
 
     this.weatherIcon = this.add.image(coinX - (compact ? 18 * S : 26 * S), midY, 'ui', UI.sun)
-      .setScrollFactor(0).setDepth(UI_DEPTH.hud + 1).setScale((compact ? 0.6 : 0.85) * S);
+      .setScrollFactor(0).setDepth(UI_DEPTH.hud + 1).setScale((compact ? 0.6 : 0.85) * S)
+      .setVisible(showWeather);
     this.add.image(coinX, midY, 'ui', UI.coin)
       .setScrollFactor(0).setDepth(UI_DEPTH.hud + 1).setScale((compact ? 0.6 : 0.85) * S).setName('hud-coin');
     this.goldText = this.add.text(coinX + (compact ? 10 * S : 16 * S), ty, '0', {
@@ -941,11 +953,17 @@ export class UIScene extends Phaser.Scene {
     this.placePanel(panel);
     const S = this.DP;
 
+    // root 的第一个子对象就是面板外点击区（透明 Rectangle）
+    const shade = panel.root.list[0] as Phaser.GameObjects.Rectangle | undefined;
+    const shadeBounds = shade?.getBounds();
+
     const d = collectEnvDiag({
       safe: this.safe,
       hudHCss: this.hudHCss,
       textTopCss: this.dayText.y / S,
       renderScale: S,
+      shadeTopCss: shadeBounds ? shadeBounds.y / S : undefined,
+      shadeHCss: shadeBounds ? shadeBounds.height / S : undefined,
     });
 
     // 取消 body 的「640 基准等比缩放」：那一套是为了让按横屏设计的按钮在竖屏不溢出，
@@ -976,6 +994,8 @@ export class UIScene extends Phaser.Scene {
     const copy = textButton(this, panel.w / 2 - 80, -22, 44, 44, '⧉', () => {
       void copyText(d.summary).then((ok) => {
         this.toast(ok ? '已复制，粘贴发给开发者就行' : '复制失败，请直接截图发来');
+      }).catch(() => {
+        this.toast('复制失败，请直接截图发来');
       });
     }, { bg: 0x5b5044 });
     panel.body.add([copy]);

@@ -67,7 +67,7 @@ export interface Panel {
   close: () => void;
   setTitle: (t: string) => void;
   /** 视口尺寸变了（转屏）：重铺遮罩并重新居中（cy 不传就按几何中心） */
-  resizeShade: (vw: number, vh: number, cy?: number) => void;
+  resizeShade: (vw: number, vh: number, cy?: number, topPx?: number) => void;
 }
 
 /**
@@ -140,10 +140,10 @@ export function makePanel(scene: Phaser.Scene, title: string, onClose?: () => vo
   const root = scene.add.container(uiW / 2, uiH / 2);
   root.setDepth(UI_DEPTH.modal);
 
-  // 遮罩：铺满整屏并吞掉点击（不穿透到背景）——先加，必须在最底层。
-  // 它是 root 的子对象：root 原点 = 面板中心，所以 local (0,0) 就是屏幕中心。
-  // 面板被 placePanel 挪到 HUD 下方后，resizeShade 会把 shade 的局部 y 补回屏幕中心。
-  const shade = scene.add.rectangle(0, 0, uiW, uiH, 0x000000, 0.6);
+  // 面板外的透明点击区：只吞点击，不压暗 HUD/游戏背景。
+  // 以前是 0.6 黑遮罩；PWA 顶部状态栏玻璃 + 遮罩叠在一起时 HUD 会看不清，直接去掉视觉层。
+  // 它仍然是 root 的子对象：root 原点 = 面板中心，local (0,0) 就是屏幕中心。
+  const shade = scene.add.rectangle(0, 0, uiW, uiH, 0x000000, 0);
   shade.setInteractive();
   // 记录创建时已经在屏幕上的手指。这些手指的 pointerup 不应当算作"点遮罩关闭"，
   // 否则"按下动作键 → 面板弹出 → 松手"会把面板瞬间关掉（手机上必然发生）。
@@ -189,16 +189,17 @@ export function makePanel(scene: Phaser.Scene, title: string, onClose?: () => vo
   return {
     root, body, w: cssW, h: cssH, close,
     setTitle: (t: string) => titleTxt.setText(t),
-    resizeShade: (vw: number, vh: number, cy?: number) => {
+    resizeShade: (vw: number, vh: number, cy?: number, topPx = 0) => {
       const centerY = cy ?? vh / 2;
+      const top = Math.max(0, Math.min(topPx, vh));
+      const shadeH = vh - top;
       root.setPosition(vw / 2, centerY);
-      // 遮罩在 root 的局部坐标里；root 下移了多少，shade 就补回多少，
-      // 保证它的世界中心仍在 (vw/2, vh/2)，而不是跟着面板跑到下半个屏幕。
-      shade.setPosition(0, vh / 2 - centerY);
-      shade.setSize(vw, vh);
-      // ⚠️ Rectangle 是 Shape 不是 Container：它的输入命中区按「左上角 + displayOrigin」
-      // 解释，必须写 (0,0,w,h)；写成 (-w/2,-h/2,w,h) 会让实际可点区域只覆盖左上半个屏幕。
-      shade.input?.hitArea.setTo(0, 0, vw, vh);
+      // 透明点击区只盖 HUD 以下的游戏区：HUD / 状态栏保持可见，☰ 也仍然可点。
+      // shade 在 root 的局部坐标里，世界中心要落在 (vw/2, top + shadeH/2)。
+      shade.setPosition(0, (top + vh) / 2 - centerY);
+      shade.setSize(vw, shadeH);
+      // Rectangle 是 Shape：命中区按左上角 + displayOrigin 解释，写 (0,0,w,h)
+      shade.input?.hitArea.setTo(0, 0, vw, shadeH);
     },
   };
 }

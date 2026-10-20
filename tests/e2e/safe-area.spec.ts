@@ -44,6 +44,7 @@ async function readChrome(page: Page) {
       menuBottom: (mb.y + mb.height) / S,
       menuLeft: mb.x / S,
       menuRight: (mb.x + mb.width) / S,
+      energyRight: (u.energyBar.x + u.energyBar.width) / S,
       actLeft: (act.x - act.radius) / S,
       actRight: (act.x + act.radius) / S,
       actBottom: (act.y + act.radius) / S,
@@ -94,6 +95,8 @@ for (const vp of [
     expect(c.dayLeft, `HUD 日期 x=${c.dayLeft.toFixed(1)} 压进左侧安全区 ${vp.left}`).toBeGreaterThanOrEqual(vp.left + 6 - 0.5);
     expect(c.menuLeft, `☰ 左边缘 ${c.menuLeft.toFixed(1)} 压进左侧安全区 ${vp.left}`).toBeGreaterThanOrEqual(vp.left - 0.5);
     expect(c.menuRight, `☰ 右边缘 ${c.menuRight.toFixed(1)} 超出右侧安全区`).toBeLessThanOrEqual(vp.width - vp.right + 0.5);
+    // 竖屏时 ☰ 与体力条同一行：体力条右端不能钻到按钮下面
+    expect(c.energyRight, `体力条右端 ${c.energyRight.toFixed(1)} 压住了 ☰ 左边缘 ${c.menuLeft.toFixed(1)}`).toBeLessThanOrEqual(c.menuLeft - 4);
     expect(c.actLeft).toBeGreaterThanOrEqual(vp.left - 0.5);
     expect(c.actRight, `互动键右边缘 ${c.actRight.toFixed(1)} 超出右侧安全区`).toBeLessThanOrEqual(vp.width - vp.right + 0.5);
     expect(c.joyLeft, `摇杆左边缘 ${c.joyLeft.toFixed(1)} 压进左侧安全区 ${vp.left}`).toBeGreaterThanOrEqual(vp.left - 0.5);
@@ -224,7 +227,7 @@ async function emulateIosPwa(page: Page, real: { w: number; h: number }) {
   }, [real.w, real.h] as const);
 }
 
-test('iOS PWA 独立模式：env() 失效时 HUD 仍躲开状态栏，且不留黑带', async ({ browser }) => {
+test('iOS PWA 独立模式：black 状态栏下 env() 失效不重复让 top，且不留黑带', async ({ browser }) => {
   const W = 393;
   const H = 852;
   const ctx = await browser.newContext({
@@ -254,9 +257,10 @@ test('iOS PWA 独立模式：env() 失效时 HUD 仍躲开状态栏，且不留�
   expect(m.appH, '--app-h 应为真实可视高度（visualViewport 稳定后要重测）').toBe(`${H}px`);
   expect(m.gameH, '画布高度必须等于可视高度，否则底部露黑带').toBeCloseTo(H, 0);
 
-  // 2) 状态栏：env() 读 0 时靠 iOS 兜底补 59，HUD 文字整体落在状态栏之下
-  expect(m.safeTop, 'env() 全 0 且是 iOS 独立窗口 → 应补状态栏高度').toBeGreaterThanOrEqual(47);
-  expect(m.textTop, 'HUD 首行文字应落在补出来的安全区之下').toBeGreaterThanOrEqual(m.safeTop);
+  // 2) black 状态栏：网页从状态栏下方开始，env() 全 0 时 top 不能补 59，否则 double inset
+  expect(m.safeTop, 'black 状态栏下 top 不应再兜底 59').toBe(0);
+  expect(m.textTop, 'HUD 首行文字应在可视区内').toBeGreaterThanOrEqual(0);
+  expect(m.textTop, 'HUD 文字不应被二次下移').toBeLessThan(47);
   expect(m.hudH).toBeGreaterThan(40);
 
   await ctx.close();

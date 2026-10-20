@@ -86,7 +86,7 @@ e2e（headless Chromium 没有刘海，`env()` 恒为 0）通过 `window.__valeS
 | 谁 | 怎么处理 | 为什么 |
 |---|---|---|
 | 相机取景（`GameScene`） | **整块画布，不内缩** | 世界可以落到灵动岛/圆角下面，由硬件自然遮挡；按安全区裁 viewport 会在横屏左右/底部露黑边 |
-| UI 覆盖层（`UIScene`） | `uiInsets()`：top 不让出，left/right/bottom 都让 | HUD 是**盖**上去的；`black-translucent` 让状态栏白字浮在网页上，HUD 底色必须铺到 y=0 盖住它，文字排到 59 之下 |
+| UI 覆盖层（`UIScene`） | `uiInsets()`：left/right/bottom 让；top 看状态栏模式 | PWA 用不透明 `black` 状态栏，网页从状态栏下方开始；`black` + `env()` 全 0 时 top 不补 59。`black-translucent` 旧模式仍按 59 兜底 |
 
 build 17 曾让 UI 也走 `contentInsets`，`safe.top` 归零 → HUD 底色只到 45px，状态栏白字被糊掉。
 `contentInsets()` 现在只作为 `uiInsets()` 的辅助/历史判据，不再给相机用。
@@ -106,7 +106,7 @@ build 17 曾让 UI 也走 `contentInsets`，`safe.top` 归零 → HUD 底色只�
 
 | 现象 | 根因 | 修法 |
 |---|---|---|
-| 顶部露出深色带，HUD 被压到状态栏下 | iOS 独立窗口里 `viewport-fit=cover` 常不生效 → `env()` 全为 0；`black-translucent` 又让内容铺到状态栏下 | `currentSafeInsets()`：`env()` 四边全 0 且「iOS + 独立模式」时兜底。竖屏用 `59/0/34/0`，横屏用 `0/59/21/59`；读到任意一条边就认为 env 正常，不叠经验值 |
+| 顶部露出深色带，HUD 被压到状态栏下 | iOS 独立窗口里 `viewport-fit=cover` 常不生效 → `env()` 全为 0；旧 `black-translucent` 又让内容铺到状态栏下 | PWA 改为不透明 `black` 状态栏（网页从状态栏下方开始）；`currentSafeInsets()` 只在 `black-translucent` 或 `env()` 有值时按旧逻辑补 top。**改 meta 后需要删掉主屏图标重新添加才生效** |
 | 上下各一条黑带（高度偏小） | 冷启动瞬间可视高度（`innerHeight` / `visualViewport`）还是旧值/0；早先只写一次 `--app-h`，页面定格在偏小高度 | `measureAppHeight()` 返回 `null` 表示“没量准，继续等”，`settleAppHeight()` 补测 |
 
 环境判断的边界：
@@ -172,5 +172,5 @@ build 17 曾让 UI 也走 `contentInsets`，`safe.top` 归零 → HUD 底色只�
 ## 6. 测试覆盖速查
 
 - **单测** [tests/unit/](../tests/unit/)：作物状态机、经济、NPC 好感、存档 normalize/迁移、layout 不变量、安全区、viewport 让出、env 诊断。
-- **e2e** [tests/e2e/](../tests/e2e/)：核心循环、存档写入 → reload 逐字段、断网、深层子路径 0 404、6 种视口自适应、dpr 2/3 面板与 ✕、运行中旋转、触控面板、面板遮罩全屏/点外关闭、体力条缩短、竖屏提示、安全区注入、iPhone 15 Pro 横竖屏左右安全区、环境诊断。
+- **e2e** [tests/e2e/](../tests/e2e/)：核心循环、存档写入 → reload 逐字段、断网、深层子路径 0 404、6 种视口自适应、dpr 2/3 面板与 ✕、运行中旋转、触控面板、面板外透明点击区/点外关闭、体力条缩短、竖屏提示、安全区注入、iPhone 15 Pro 横竖屏左右安全区、环境诊断。
 - **live-check**：6 个视口 + 1 次旋转；检查 `panelCss` / `closedByX` / `actOpens` / `noScroll` / `joyLeftBottom` / `actRightBottom` / `noErrors`。URL 必须显式传入，不写入仓库。

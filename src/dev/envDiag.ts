@@ -10,6 +10,21 @@
 
 import { isIosDevice, isStandaloneApp, readSafeInsets, type SafeInsets } from '../layout';
 
+// 由 vite.config.ts 注入；单测里没有 define 时安全回退到 dev
+declare const __APP_VERSION__: string;
+declare const __APP_BUILD__: string;
+declare const __BUILD_TIME__: string;
+
+const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
+const APP_BUILD = typeof __APP_BUILD__ === 'string' ? __APP_BUILD__ : '-';
+const BUILD_TIME = typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : '';
+/** 模块载入时间：PWA 里能看到这次页面到底是什么时候拉起的 */
+const PAGE_LOADED_AT = new Date();
+/** 构建产物名（生产是 index-xxxx.js，dev 是 envDiag.ts） */
+const RESOURCE_NAME = (() => {
+  try { return new URL(import.meta.url).pathname.split('/').pop() || '-'; } catch { return '-'; }
+})();
+
 export interface EnvDiagInput {
   /** 排版实际采用的安全区（UIScene.safe），不是 env() 的原始读数 */
   safe: SafeInsets;
@@ -19,6 +34,9 @@ export interface EnvDiagInput {
   textTopCss: number;
   /** 画布像素 / CSS 像素（= dpr，封顶 2） */
   renderScale: number;
+  /** 当前面板外点击区的实际顶边 / 高度（CSS 像素）；没有面板时为空 */
+  shadeTopCss?: number;
+  shadeHCss?: number;
 }
 
 export interface EnvDiag {
@@ -36,6 +54,15 @@ function boxRect(el: Element | null): string {
   return r ? `${Math.round(r.width)}×${Math.round(r.height)} @top ${Math.round(r.top)}` : '-';
 }
 
+function fmtTime(value: Date | string): string {
+  try {
+    const d = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString('zh-CN', { hour12: false });
+  } catch {
+    return String(value);
+  }
+}
+
 export function collectEnvDiag(input: EnvDiagInput): EnvDiag {
   const raw = readSafeInsets();
   const envWorks = raw.top > 0 || raw.bottom > 0 || raw.left > 0 || raw.right > 0;
@@ -49,6 +76,12 @@ export function collectEnvDiag(input: EnvDiagInput): EnvDiag {
   const vv = window.visualViewport;
   const cv = document.querySelector('#game canvas') as HTMLCanvasElement | null;
   const appH = getComputedStyle(document.documentElement).getPropertyValue('--app-h').trim();
+  const statusBarStyle = (() => {
+    try {
+      return document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
+        ?.getAttribute('content') ?? '-';
+    } catch { return '-'; }
+  })();
 
   // 这一行是整份诊断的结论：**为什么**最后用了这组安全区。
   // 三种来源互斥，看到「兜底」说明 env() 在真机上失效了 —— 那正是 PWA 黑屏的常见根因。
@@ -57,7 +90,12 @@ export function collectEnvDiag(input: EnvDiagInput): EnvDiag {
     : (ios && standalone ? 'iOS PWA 兜底 59/34（env 全 0）' : '全 0：系统未遮挡内容');
 
   const rows: [string, string][] = [
+    ['版本 / 构建', `${APP_VERSION} / build ${APP_BUILD}`],
+    ['构建时间', BUILD_TIME ? fmtTime(BUILD_TIME) : 'dev（Vite 未注入）'],
+    ['本次载入', fmtTime(PAGE_LOADED_AT)],
+    ['前端资源', RESOURCE_NAME],
     ['模式', standalone ? 'PWA 独立窗口' : '浏览器标签页'],
+    ['状态栏样式', statusBarStyle],
     ['navigator.standalone', String(navStandalone)],
     ['display-mode:standalone', mm('(display-mode: standalone)')],
     ['是否 iOS / iPadOS', String(ios)],
@@ -75,6 +113,9 @@ export function collectEnvDiag(input: EnvDiagInput): EnvDiag {
     ['安全区来源', source],
     ['★ 最终 safe(t/r/b/l)', `${n(input.safe.top)} / ${n(input.safe.right)} / ${n(input.safe.bottom)} / ${n(input.safe.left)}`],
     ['HUD 高度 / 首行文字顶边', `${n(input.hudHCss)} / ${n(input.textTopCss)}`],
+    ['面板外点击区顶边 / 高度', input.shadeTopCss != null && input.shadeHCss != null
+      ? `${n(input.shadeTopCss)} / ${n(input.shadeHCss)}`
+      : '-'],
     ['画布 px / CSS px', String(input.renderScale)],
     ['UA', navigator.userAgent],
   ];
@@ -87,26 +128,34 @@ export function collectEnvDiag(input: EnvDiagInput): EnvDiag {
 
 /** 复制到剪贴板。iOS 需要 https + 用户手势上下文，失败时返回 false 让调用方提示截图 */
 export async function copyText(text: string): Promise<boolean> {
+  // iOS PWA 里 Clipboard API 经常拒绝；而 execCommand 必须在**手势同步栈**里执行，
+  // 先 await clipboard 失败再 fallback 时手势可能已经丢了。所以先同步走旧方案。
+  let ta: HTMLTextAreaElement | null = null;
+  try {
+    ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    // 不用 top:-9999 的离屏写法：iOS Safari 对不可见/离屏 textarea 的 execCommand 更严格。
+    ta.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0.01;'
+      + 'font-size:16px;border:0;padding:0;z-index:2147483647;';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    if (document.execCommand('copy')) return true;
+  } catch {
+    // 落到 Clipboard API
+  } finally {
+    ta?.remove();
+  }
+
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
       return true;
     }
   } catch {
-    // 落到下面的 execCommand：老 Safari / 无 https 时的老办法
+    // 无权限 / 非安全上下文
   }
-  try {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.cssText = 'position:fixed;top:-9999px;opacity:0';
-    document.body.appendChild(ta);
-    ta.select();
-    ta.setSelectionRange(0, text.length);
-    const ok = document.execCommand('copy');
-    ta.remove();
-    return ok;
-  } catch {
-    return false;
-  }
+  return false;
 }

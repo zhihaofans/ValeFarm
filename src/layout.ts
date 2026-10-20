@@ -185,6 +185,19 @@ export function isIosDevice(): boolean {
 const IOS_PWA_FALLBACK_PORTRAIT: SafeInsets = { top: 59, right: 0, bottom: 34, left: 0 };
 const IOS_PWA_FALLBACK_LANDSCAPE: SafeInsets = { top: 0, right: 59, bottom: 21, left: 59 };
 
+/**
+ * 当前 iOS PWA 的状态栏是否盖在网页内容上。
+ *
+ * `black-translucent`：网页从屏幕物理顶端开始画，HUD 必须自己让出/盖住状态栏。
+ * `black` / `default`：系统状态栏不透明，网页从状态栏下方开始，top 不能再补 59。
+ * 读不到 meta 时按旧的 `black-translucent` 处理，避免老页面被误判。
+ */
+export function statusBarOverlaysContent(): boolean {
+  if (typeof document === 'undefined' || typeof document.querySelector !== 'function') return true;
+  const meta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+  return (meta?.getAttribute('content') ?? 'black-translucent') === 'black-translucent';
+}
+
 /** 当前生效的安全区（CSS 像素）：测试注入 > env() > iOS 独立模式兜底 */
 export function currentSafeInsets(viewH: number = window.innerHeight): SafeInsets {
   if (typeof window === 'undefined') return { ...ZERO };
@@ -195,10 +208,14 @@ export function currentSafeInsets(viewH: number = window.innerHeight): SafeInset
   // env() 完全读不到（四边全 0）且处于 iOS 独立窗口 → 用经验值顶上。
   // 只要读到任意一条边就认为 env() 是工作的，不再叠经验值。
   const envWorks = raw.top > 0 || raw.bottom > 0 || raw.left > 0 || raw.right > 0;
-  if (!envWorks && isIosDevice() && isStandaloneApp()) {
+  const iosStandalone = isIosDevice() && isStandaloneApp();
+  const overlays = statusBarOverlaysContent();
+  if (!envWorks && iosStandalone) {
     // 横屏的刘海/灵动岛在左右两侧，不能用竖屏的 top/bottom 兜底
     const landscape = (window.innerWidth || 0) > viewH;
-    return effectiveSafeInsets(landscape ? IOS_PWA_FALLBACK_LANDSCAPE : IOS_PWA_FALLBACK_PORTRAIT, viewH);
+    const fallback = landscape ? IOS_PWA_FALLBACK_LANDSCAPE : IOS_PWA_FALLBACK_PORTRAIT;
+    // black 状态栏下网页从状态栏下方开始，env 全 0 时 top 不能再补
+    return effectiveSafeInsets(overlays ? fallback : { ...fallback, top: 0 }, viewH);
   }
   return effectiveSafeInsets(raw, viewH);
 }

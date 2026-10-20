@@ -3,17 +3,15 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
-## Unreleased
+## 0.5.0 — build 20
 
-- 新增 [AGENTS.md](AGENTS.md)：给 AI 编码代理的工作区硬约束。
-- README 重构为项目介绍；长篇实现细节移到 [TECH_NOTES.md](dev-docs/TECH_NOTES.md)。
-- 版本历史从 README 抽出为本文件。
-- 移除 README 中的旧部署地址，改用 GitHub Pages 项目页；`tools/live-check.mjs` 改为必须显式传入 URL。
-- **iPhone 15 Pro 横竖屏适配**：HUD / ☰ / 摇杆 / 互动键改用左右安全区；相机改为整块画布，消除横屏左右/底部黑边；iOS PWA 横屏兜底 `0/59/21/59`。
-- **修复面板遮罩错位**：遮罩始终保持屏幕中心并铺满全屏；补「左上角点外关闭」回归测试。
-- 修复一批已知问题：体力条视觉不缩短；音效开关重载后失效；切后台/pagehide 不存档；雨天或浇湿地播种不继承水分；跨季枯萎晚一天；2:00 强制睡觉没有昏倒惩罚；转屏后安全区看门狗失效；摇杆/按钮监听器累积；雨滴只在启动时下雨才创建；存储降级读不到 localStorage；存档失败无提示；season 脏值；送礼面板嵌套状态；`showTip` 抬手误关。
-- 清理死代码：移除未使用的 `rowTargets`、`save()` 空操作、重复三元表达式。
-- 补充 GitHub Pages 的 `base: './'` 说明；部署文档分支修正为 `master`。
+- **iPhone 15 Pro 横竖屏适配**：HUD / ☰ / 摇杆 / 互动键让步左右安全区；相机改为整块画布，消除横屏左右/底部黑边；iOS PWA 横屏兜底 `0/59/21/59`。
+- **面板与 HUD**：面板外点击区改为完全透明，不再压暗 HUD/游戏；点击区顶边绑定 HUD 实际下沿；日期文字加粗提亮；竖屏体力条让开右上 ☰。
+- **PWA**：状态栏改为不透明 `black`，底部 59px 黑带消失；需删除主屏图标重新添加生效。顶部系统玻璃仍是已知问题（见下）。
+- **环境诊断**：增加版本/构建号、构建时间、本次载入、前端资源名、状态栏样式、点击区顶边/高度；复制优先同步 `execCommand`，兼容 iOS 用户手势。
+- **修复一批问题**：体力条不缩短、音效开关启动失效、切后台不存档、雨天/湿地播种不继承水分、跨季枯萎晚一天、2:00 无昏倒惩罚、`resizeTimer` 不复位、摇杆/按钮监听器累积、雨滴不随天气刷新、存储降级读不到 localStorage、存档失败无提示、season 脏值、送礼面板嵌套、`showTip` 抬手误关。
+- 清理死代码；整理 [AGENTS.md](AGENTS.md)、README、TECH_NOTES 和 GitHub Pages 发布说明。
+- **已知未修**：iOS 27.0.1 + iPhone 15 Pro 的 PWA 竖屏顶部 HUD 仍会被系统状态栏/玻璃层压灰；Safari 标签页与 PWA 横屏正常，已排除游戏内遮罩。复现与后续实验见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md) §9。
 
 ## 0.4.2 — build 19
 

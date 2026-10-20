@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 
 test.use({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 3 });
 
-test('面板遮罩铺满整屏：左上角点外也能关闭', async ({ page }) => {
+test('面板外透明点击区：不压暗 HUD，左上角点外也能关闭', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => !!(window as unknown as any).__vale, null, { timeout: 30000 });
   await page.waitForTimeout(1200);
@@ -11,9 +11,7 @@ test('面板遮罩铺满整屏：左上角点外也能关闭', async ({ page }) 
   const m = await page.evaluate(() => {
     const u = (window as unknown as any).__vale.scene.scene.get('ui');
     const p = u.activePanel;
-    const shade = p.root.list.find(
-      (o: any) => o.type === 'Rectangle' && Math.abs((o.fillAlpha ?? 0) - 0.6) < 0.01,
-    );
+    const shade = p.root.list[0];
     const b = shade.getBounds();
     return {
       open: !!u.panelOpen,
@@ -23,17 +21,22 @@ test('面板遮罩铺满整屏：左上角点外也能关闭', async ({ page }) 
       h: b.height / u.uiDpr,
       vw: u.vw / u.uiDpr,
       vh: u.vh / u.uiDpr,
+      hudBottom: u.safe.top + u.hudHCss,
+      fillAlpha: shade.fillAlpha ?? 1,
     };
   });
 
   expect(m.open, '首屏应有晨报面板').toBe(true);
-  // 遮罩的世界包围盒必须覆盖整个屏幕，而不是只压在右下角
-  expect(m.x, '遮罩左边缘未到屏幕左边').toBeLessThanOrEqual(0.5);
-  expect(m.y, '遮罩上边缘未到屏幕顶部').toBeLessThanOrEqual(0.5);
-  expect(m.x + m.w, '遮罩右边缘未到屏幕右边').toBeGreaterThanOrEqual(m.vw - 0.5);
-  expect(m.y + m.h, '遮罩下边缘未到屏幕底部').toBeGreaterThanOrEqual(m.vh - 0.5);
+  // 点击区必须完全透明：不能再有任何"玻璃"压暗 HUD / 游戏
+  expect(m.fillAlpha, '面板外点击区不能有可见填充').toBeLessThanOrEqual(0.01);
+  // 点击区覆盖左右/底部，但顶部从 HUD 下沿开始
+  expect(m.x, '点击区左边缘未到屏幕左边').toBeLessThanOrEqual(0.5);
+  expect(m.x + m.w, '点击区右边缘未到屏幕右边').toBeGreaterThanOrEqual(m.vw - 0.5);
+  expect(m.y, `点击区顶边 ${m.y.toFixed(1)} 应等于 HUD 下沿 ${m.hudBottom.toFixed(1)}`).toBeGreaterThanOrEqual(m.hudBottom - 0.5);
+  expect(m.y).toBeLessThanOrEqual(m.hudBottom + 0.5);
+  expect(m.y + m.h, '点击区下边缘未到屏幕底部').toBeGreaterThanOrEqual(m.vh - 0.5);
 
-  // 面板在屏幕中间；左上角外侧必须被遮罩接住并关闭
+  // 面板在屏幕中间；左上角外侧必须被透明点击区接住并关闭
   const box = (await page.locator('#game canvas').boundingBox())!;
   await page.touchscreen.tap(box.x + 20, box.y + 200);
   await page.waitForTimeout(300);
