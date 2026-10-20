@@ -52,9 +52,44 @@ export const CROPS: Record<CropId, CropDef> = {
     baseSell: 240,
     uiFrame: 'pumpkin',
   },
+  strawberry: {
+    id: 'strawberry',
+    name: '红莓草莓',
+    seasons: [0],                 // 春
+    stageThresholds: [1, 1, 2],   // 4 天
+    seedPrice: 40,
+    baseSell: 95,
+    uiFrame: 'strawberry',
+  },
+  sweetpotato: {
+    id: 'sweetpotato',
+    name: '蜜心红薯',
+    seasons: [2],                 // 秋
+    stageThresholds: [2, 1, 2],   // 5 天
+    seedPrice: 55,
+    baseSell: 125,
+    uiFrame: 'sweetpotato',
+  },
 };
 
-export const CROP_ORDER: CropId[] = ['radish', 'pea', 'corn', 'pumpkin'];
+export const CROP_ORDER: CropId[] = ['radish', 'pea', 'corn', 'pumpkin', 'strawberry', 'sweetpotato'];
+
+/** 每日特价：当季种子里按天轮换一种，8 折 */
+export const DAILY_SEED_DISCOUNT = 0.8;
+
+export function dailySeedSpecial(
+  season: Season,
+  day: number,
+): { crop: CropId; price: number; discount: number } | null {
+  const seeds = CROP_ORDER.filter((c) => CROPS[c].seasons.includes(season));
+  if (seeds.length === 0) return null;
+  const crop = seeds[(Math.max(1, Math.floor(day)) - 1) % seeds.length];
+  return {
+    crop,
+    price: Math.max(1, Math.round(CROPS[crop].seedPrice * DAILY_SEED_DISCOUNT)),
+    discount: DAILY_SEED_DISCOUNT,
+  };
+}
 
 /** 品质售价系数与名称 */
 export const QUALITY: Record<Quality, { mult: number; name: string; frame: string | null }> = {
@@ -112,10 +147,18 @@ export const NPCS: NpcDef[] = [
       { tier: 0, text: '你是新搬来的农场主吧？这片地荒了好些年了。' },
       { tier: 0, text: '种子铺就在我旁边，记得看季节买种。' },
       { tier: 0, text: '杂草要清干净，不然没地可锄。' },
+      { tier: 0, text: '今天风向不错，晒谷子正合适。' },
+      { tier: 0, text: '山里的泉水甜，浇出来的菜也甜。' },
       { tier: 1, text: '你的田越来越像样了，路过闻着都香。' },
       { tier: 1, text: '下雨天就歇着吧，老天爷替你浇水。' },
+      { tier: 1, text: '你上次送的菜我腌起来了，冬天配粥正好。' },
+      { tier: 1, text: '镇上的旅人问起这片田，我说是你的。' },
+      { tier: 1, text: '别总一个人忙，累了就来铺子坐坐。' },
       { tier: 2, text: '有你在，这山谷都热闹起来了。' },
       { tier: 2, text: '说真的，谢谢你常来看我。' },
+      { tier: 2, text: '要是哪天累了，就来铺子坐坐，别硬撑。' },
+      { tier: 2, text: '等春天到了，我们一起在田边种一排花吧。' },
+      { tier: 2, text: '这片田有你照看，我放心。' },
     ],
   },
 ];

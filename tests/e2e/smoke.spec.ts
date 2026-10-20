@@ -117,14 +117,21 @@ test.describe('核心循环（种—浇—收—卖—买）', () => {
     expect(got).toBeGreaterThanOrEqual(1);
   });
 
-  test('商店 UI：打开面板买 1 包种子扣钱', async ({ page }) => {
-    // 站到商店门前（商店在 (19,2)，门口 (19,3)），面朝上；商店 9:00 开门，把时间拨到白天
+  test('商店 UI：7 点开门，买 1 包种子扣钱', async ({ page }) => {
+    // 站到商店门前（商店在 (19,2)，门口 (19,3)），面朝上
     await page.evaluate(() => {
       const { scene, world } = (window as unknown as any).__vale;
       scene.player.setPosition(19 * 32 + 16, 3 * 32 + 16);
       world.facing = 'up';
-      world.minute = 10 * 60;
+      world.minute = 6 * 60 + 30;
     });
+    // 6:30 还没开门
+    await page.evaluate(() => (window as unknown as any).__vale.scene.doAction());
+    await page.waitForTimeout(150);
+    expect(await page.evaluate(() => (window as unknown as any).__vale.scene.scene.get('ui').panelOpen)).toBe(false);
+
+    // 7:00 开门
+    await page.evaluate(() => { (window as unknown as any).__vale.world.minute = 7 * 60; });
     const goldBefore = await page.evaluate(() => (window as unknown as any).__vale.world.gold);
     await page.evaluate(() => (window as unknown as any).__vale.scene.doAction());
     await page.waitForTimeout(300);
@@ -147,7 +154,8 @@ test.describe('核心循环（种—浇—收—卖—买）', () => {
       const w = (window as unknown as any).__vale.world;
       return { goldAfter: w.gold, seeds: w.inventory['seed:radish'] ?? 0 };
     });
-    expect(goldAfter).toBe(goldBefore - 20);
+    // 第一天萝卜是今日特价（16G），具体折扣由单测精确覆盖，这里只验扣钱/到账
+    expect(goldAfter).toBeLessThan(goldBefore);
     expect(seeds).toBeGreaterThanOrEqual(7);
   });
 

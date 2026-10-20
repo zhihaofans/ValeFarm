@@ -587,7 +587,9 @@ export class GameScene extends Phaser.Scene {
   private tryOpenShop(): void {
     const m = this.world.minute;
     if (m < SHOP_OPEN_MINUTE || m >= SHOP_CLOSE_MINUTE) {
-      (this.scene.get('ui') as UIScene).toast('商店还没开门（9:00 - 22:00）');
+      const open = `${Math.floor(SHOP_OPEN_MINUTE / 60)}:00`;
+      const close = `${Math.floor(SHOP_CLOSE_MINUTE / 60)}:00`;
+      (this.scene.get('ui') as UIScene).toast(`商店还没开门（${open} - ${close}）`);
       SFX.fail();
       return;
     }

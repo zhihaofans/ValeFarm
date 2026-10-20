@@ -30,7 +30,7 @@ npm run dev -- --host   # 手机同局域网调试（需 https 或 localhost 才
 
 npm run build        # 类型检查 + 构建 → docs/
 npm run preview      # 预览构建产物 :4173
-npm test             # 单元测试（vitest，75 条，秒级）
+npm test             # 单元测试（vitest，79 条，秒级）
 npm run test:e2e     # 端到端（playwright，38 条，约 50 秒）
 npm run package      # 打 zip（源码 + docs/）
 ```
@@ -186,7 +186,7 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 
 ## 6. 测试策略
 
-### 单元测试（75 条，`tests/unit/`）
+### 单元测试（79 条，`tests/unit/`）
 
 全是 `core/` 的纯函数，不碰浏览器。改了经济、存档、作物、NPC 逻辑必须保持绿。
 

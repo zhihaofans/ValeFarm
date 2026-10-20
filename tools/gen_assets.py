@@ -537,9 +537,47 @@ CROP_ART = {
         '................',
         '................',
     ],
+    # 草莓：低矮叶丛 + 三颗红果
+    'strawberry': [
+        '................',
+        '................',
+        '.......g........',
+        '......gGg.......',
+        '.....g.g.g......',
+        '....gGg.gGg.....',
+        '....g.....g.....',
+        '...gFg...gFg....',
+        '...FFF...FFF....',
+        '...FFF...FFF....',
+        '....F.....F.....',
+        '.....s...s......',
+        '......s.s.......',
+        '.......s........',
+        '................',
+        '................',
+    ],
+    # 红薯：藤叶 + 露出地面的橙色块根
+    'sweetpotato': [
+        '................',
+        '................',
+        '................',
+        '.......g........',
+        '......gGg.......',
+        '.....g...g......',
+        '....gGg.gGg.....',
+        '....g.....g.....',
+        '.....g...g......',
+        '......g.g.......',
+        '...UUUUUUUUU....',
+        '..UUHHUUHHUUU...',
+        '..UUHHUUHHUUU...',
+        '..UUUUUUUUUUU...',
+        '...UUUUUUUUU....',
+        '................',
+    ],
 }
 
-CROP_ORDER = ['radish', 'pea', 'corn', 'pumpkin']
+CROP_ORDER = ['radish', 'pea', 'corn', 'pumpkin', 'strawberry', 'sweetpotato']
 CROP_STAGES = 5     # 0..3 生长，4 = 枯萎
 
 
@@ -862,6 +900,8 @@ UI_LIST = [
     ('pea', crop_stage_art('pea', 3)),
     ('corn', crop_stage_art('corn', 3)),
     ('pumpkin', crop_stage_art('pumpkin', 3)),
+    ('strawberry', crop_stage_art('strawberry', 3)),
+    ('sweetpotato', crop_stage_art('sweetpotato', 3)),
     ('withered', crop_stage_art('radish', 4)),
 ]
 

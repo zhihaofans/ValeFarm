@@ -116,6 +116,21 @@ describe('存档 normalize', () => {
     expect(normalizeWorld({ season: -1 }).season).toBe(3);
   });
 
+  it('新作物草莓/红薯在 normalize 中登记，不静默丢档', () => {
+    const w = normalizeWorld({
+      inventory: { 'seed:strawberry': 2, 'crop:sweetpotato:sil': 1 },
+      plots: [{
+        state: 'tilled',
+        crop: { type: 'strawberry', stage: 1, progress: 1, dryDays: 0, wateredToday: true, withered: false },
+        obstacle: null,
+      }],
+    });
+    expect(w.inventory['seed:strawberry']).toBe(2);
+    expect(w.inventory['crop:sweetpotato:sil']).toBe(1);
+    expect(w.plots[0].crop?.type).toBe('strawberry');
+    expect(w.plots[0].crop?.stage).toBe(1);
+  });
+
   it('非法存档 JSON 返回 null（不白屏）', () => {
     expect(deserialize('{not json')).toBeNull();
     expect(importSave('nonsense')).toBeNull();

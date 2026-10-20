@@ -4,7 +4,7 @@
 
 export type Facing = 'down' | 'left' | 'right' | 'up';
 
-export type CropId = 'radish' | 'pea' | 'corn' | 'pumpkin';
+export type CropId = 'radish' | 'pea' | 'corn' | 'pumpkin' | 'strawberry' | 'sweetpotato';
 
 export type Quality = 'norm' | 'sil' | 'gold';
 

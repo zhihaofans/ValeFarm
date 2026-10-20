@@ -26,7 +26,8 @@ export function talk(w: World, id: string): { lines: string[]; friendUp: number;
   const def = npcDef(id);
   const t = tierOf(st.friendship);
   const pool = def.lines.filter((l) => l.tier === t);
-  const line = pool[Math.floor(Math.random() * pool.length)].text;
+  // 按天轮换而不是随机：同一天重复对话说同一句，第二天自然换下一句。
+  const line = pool[(Math.max(1, w.day) + t * 3) % pool.length].text;
   let friendUp = 0;
   let rewardLine: string | undefined;
   if (!st.talkedToday) {

@@ -9,7 +9,7 @@
 - 先读 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)（架构、约定、踩坑、发版），再读 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)（数值）和 [README.md](README.md)（总览）。
 - 改代码前先看对应模块和测试；**以源码与测试为准**，不凭记忆。文档与代码冲突时在回复里指出，不要静默二选一。
 - 先 `git status`。工作区可能已有用户暂存/未提交的改动，不要 reset、unstage 或覆盖。
-- 不自动 `git commit` / `git push`，不启动长期服务，不安装全局依赖；需要时先征得用户同意。
+- **Git 提交/推送由用户自己做**：agent 不执行 `git commit` / `git push`，也不擅自 `git add`；只改文件、跑验证并在回复里报告改动。不要启动长期服务、不安装全局依赖；需要时先征得用户同意。
 - 跑不了测试/构建就如实说明，**不要声称“已通过”**。
 
 ## 1. 项目速览
@@ -107,7 +107,7 @@ UIScene 相机必须同时满足：尺寸 = 整块画布、`zoom = 1`、`origin 
 - 能力探测不要假设：`beforeinstallprompt` 只有 Chromium 有，iOS 走手动安装引导；没有能力的入口不要摆“点了没反应”的按钮。
 - 发版顺序固定：测试全绿 → 更新 [CHANGELOG.md](CHANGELOG.md) → `stamp` → `build` → `test:e2e` → `package`。不要先 bump 再验证。
 - `package` 前必须 build；打包脚本只校验 build 号，必要时自己确认 `docs/` 晚于源码。
-- 不自动提交/推送，不执行破坏性 git 操作（`reset --hard`、`checkout --`、force push），除非用户明确同意。
+- **提交/推送由用户自己执行**；agent 不 stage、不 commit、不 push，也不执行破坏性 git 操作（`reset --hard`、`checkout --`、force push）。
 
 ## 7. 安全与隐私
 

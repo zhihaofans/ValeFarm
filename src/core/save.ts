@@ -43,7 +43,8 @@ function normalizePlot(raw: unknown): Plot {
   // crop —— 必须登记：作物（含全部子字段，嵌套字段漏一个就是"看着有、实际没"）
   if (isObj(raw.crop)) {
     const type = raw.crop.type;
-    if (type === 'radish' || type === 'pea' || type === 'corn' || type === 'pumpkin') {
+    if (type === 'radish' || type === 'pea' || type === 'corn' || type === 'pumpkin'
+      || type === 'strawberry' || type === 'sweetpotato') {
       p.crop = {
         type,
         stage: Math.min(3, Math.max(0, int(raw.crop.stage, 0))),
@@ -62,7 +63,7 @@ function normalizeInventory(raw: unknown): Inventory {
   if (!isObj(raw)) return inv;
   for (const k of Object.keys(raw)) {
     const n = int(raw[k], 0);
-    if (n > 0 && /^(seed:(radish|pea|corn|pumpkin)|crop:(radish|pea|corn|pumpkin):(norm|sil|gold)|tool:(can2|hoe2))$/.test(k)) {
+    if (n > 0 && /^(seed:(radish|pea|corn|pumpkin|strawberry|sweetpotato)|crop:(radish|pea|corn|pumpkin|strawberry|sweetpotato):(norm|sil|gold)|tool:(can2|hoe2))$/.test(k)) {
       inv[k] = n;
     }
   }

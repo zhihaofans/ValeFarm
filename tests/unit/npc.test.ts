@@ -12,6 +12,17 @@ describe('NPC 好感度', () => {
     expect(w.npcs.mira.friendship).toBe(2);
   });
 
+  it('对话按天轮换：同一天同一句，次日换下一句', () => {
+    const w = createWorld();
+    w.day = 1;
+    const a = talk(w, 'mira').lines[0];
+    expect(talk(w, 'mira').lines[0]).toBe(a);
+    w.day = 2;
+    w.npcs.mira.talkedToday = false;
+    const b = talk(w, 'mira').lines[0];
+    expect(b).not.toBe(a);
+  });
+
   it('送喜爱作物 +80，普通作物 +30，每天一次', () => {
     const w = createWorld();
     w.inventory['crop:pea:gold'] = 2;

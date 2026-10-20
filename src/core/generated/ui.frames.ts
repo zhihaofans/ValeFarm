@@ -24,5 +24,7 @@ export const UI = {
   pea: 20,
   corn: 21,
   pumpkin: 22,
-  withered: 23,
+  strawberry: 23,
+  sweetpotato: 24,
+  withered: 25,
 } as const;

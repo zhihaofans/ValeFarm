@@ -3,7 +3,7 @@
 
 import Phaser from 'phaser';
 import { SEASON_NAMES, SEASON_DAYS } from '../core/config';
-import { CROPS, CROP_ORDER, QUALITY, TOOL_UPGRADES } from '../core/data';
+import { CROPS, CROP_ORDER, QUALITY, TOOL_UPGRADES, dailySeedSpecial } from '../core/data';
 import {
   buySeed, buyToolUpgrade, countItem, cropEntries, sellAllCrops, sellCrop, seasonSeeds,
 } from '../core/economy';
@@ -356,7 +356,8 @@ export class UIScene extends Phaser.Scene {
     const w = this.gameScene.world;
     const season = seasonOf(w.day);
     this.dayText.setText(`第${w.day}天  ${SEASON_NAMES[season]}季 ${dayOfSeason(w.day)}/${SEASON_DAYS}`);
-    this.timeText.setText(clockText(w.minute));
+    // 调试用坐标：tile 坐标，随移动每帧更新
+    this.timeText.setText(`${clockText(w.minute)}  坐标 (${w.playerX},${w.playerY})`);
     this.goldText.setText(String(w.gold));
     this.weatherIcon.setFrame(w.weather === 'rain' ? UI.rain : UI.sun);
     const ratio = Phaser.Math.Clamp(w.energy / w.maxEnergy, 0, 1);
@@ -631,13 +632,20 @@ export class UIScene extends Phaser.Scene {
   private renderSeedTab(panel: Panel, w: World, render: () => void): void {
     let y = 44;
     const seeds = seasonSeeds(w.season);
+    const special = dailySeedSpecial(w.season, w.day);
     if (seeds.length === 0) {
       panel.body.add(label(this, -260, y + 30, '这个季节没有种子出售。'));
     }
     for (const c of seeds) {
       const def = CROPS[c];
+      const specialPrice = special?.crop === c ? special.price : null;
+      const isSpecial = specialPrice !== null;
+      const unit = specialPrice ?? def.seedPrice;
       const days = def.stageThresholds.reduce((a, b) => a + b, 0);
-      panel.body.add(label(this, -270, y + 20, `${def.name}  ${def.seedPrice}G · 约${days}天成熟 · 卖${def.baseSell}G`));
+      const priceLine = isSpecial
+        ? `★${def.name} ${unit}G（原${def.seedPrice}G）`
+        : `${def.name} ${def.seedPrice}G`;
+      panel.body.add(label(this, -270, y + 20, `${priceLine} · ${days}天 · 卖${def.baseSell}G`, { size: 15 }));
       const b1 = textButton(this, 150, y + 24, 80, 34, '买 1', () => {
         const r = buySeed(w, c, 1);
         this.toast(r.text); if (r.ok) SFX.coin();

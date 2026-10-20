@@ -42,7 +42,7 @@ export const START_GOLD = 150;
 export const START_MAX_ENERGY = 100;
 
 // ---- 商店 ----
-export const SHOP_OPEN_MINUTE = 9 * 60;    // 9:00 开门
+export const SHOP_OPEN_MINUTE = 7 * 60;    // 7:00 开门
 export const SHOP_CLOSE_MINUTE = 22 * 60;  // 22:00 打门
 
 // ---- NPC ----

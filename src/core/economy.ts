@@ -1,6 +1,6 @@
 // 经济：背包操作、商店买卖、工具升级。
 
-import { CROPS, CROP_ORDER, QUALITY, sellPrice, TOOL_UPGRADES } from './data';
+import { CROPS, CROP_ORDER, QUALITY, dailySeedSpecial, sellPrice, TOOL_UPGRADES } from './data';
 import type { CropId, Inventory, Quality, Season, World } from './types';
 
 export function addItem(inv: Inventory, id: string, n: number): void {
@@ -52,11 +52,14 @@ export function canAfford(w: World, price: number): boolean {
 
 export function buySeed(w: World, crop: CropId, n = 1): { ok: boolean; text: string } {
   const def = CROPS[crop];
-  const cost = def.seedPrice * n;
+  const special = dailySeedSpecial(w.season, w.day);
+  const unit = special?.crop === crop ? special.price : def.seedPrice;
+  const cost = unit * n;
   if (!canAfford(w, cost)) return { ok: false, text: '金币不够' };
   w.gold -= cost;
   addItem(w.inventory, 'seed:' + crop, n);
-  return { ok: true, text: `买了 ${n} 包${def.name}种子` };
+  const tag = special?.crop === crop ? '（今日特价）' : '';
+  return { ok: true, text: `买了 ${n} 包${def.name}种子${tag}` };
 }
 
 export function sellCrop(w: World, crop: CropId, quality: Quality, n: number): { ok: boolean; text: string; gold: number } {
