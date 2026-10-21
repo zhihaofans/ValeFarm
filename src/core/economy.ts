@@ -1,6 +1,6 @@
 // 经济：背包操作、商店买卖、工具升级。
 
-import { CROPS, CROP_ORDER, QUALITY, dailySeedSpecial, sellPrice, TOOL_UPGRADES } from './data';
+import { CROPS, CROP_ORDER, QUALITY, RECIPES, dailySeedSpecial, sellPrice, TOOL_UPGRADES } from './data';
 import type { CropId, Inventory, Quality, Season, World } from './types';
 
 export function addItem(inv: Inventory, id: string, n: number): void {
@@ -60,6 +60,23 @@ export function buySeed(w: World, crop: CropId, n = 1): { ok: boolean; text: str
   addItem(w.inventory, 'seed:' + crop, n);
   const tag = special?.crop === crop ? '（今日特价）' : '';
   return { ok: true, text: `买了 ${n} 包${def.name}种子${tag}` };
+}
+
+/** 制作台：按配方扣材料，产出一个物品 */
+export function craft(w: World, recipeId: string): { ok: boolean; text: string } {
+  const recipe = RECIPES.find((r) => r.id === recipeId);
+  if (!recipe) return { ok: false, text: '没有这个配方' };
+  if (recipe.result.startsWith('tool:') && countItem(w.inventory, recipe.result) > 0) {
+    return { ok: false, text: '这个工具已经有一把了' };
+  }
+  for (const [id, n] of Object.entries(recipe.cost)) {
+    if (countItem(w.inventory, id) < n) {
+      return { ok: false, text: `材料不够：${id === 'wood' ? '木头' : id} 需要 ${n}` };
+    }
+  }
+  for (const [id, n] of Object.entries(recipe.cost)) removeItem(w.inventory, id, n);
+  addItem(w.inventory, recipe.result, 1);
+  return { ok: true, text: `做好了${recipe.name}` };
 }
 
 export function sellCrop(w: World, crop: CropId, quality: Quality, n: number): { ok: boolean; text: string; gold: number } {

@@ -47,8 +47,15 @@ export interface NPCState {
   reward300: boolean;
 }
 
+/** 林区的一棵树；hp=0 表示已砍倒，可通过 */
+export interface TreeState {
+  x: number;
+  y: number;
+  hp: number;
+}
+
 export interface Inventory {
-  /** 键约定：`seed:<crop>` | `crop:<crop>:<quality>` | `tool:can2` | `tool:hoe2` */
+  /** 键约定：`seed:<crop>` | `crop:<crop>:<quality>` | `tool:can2` | `tool:hoe2` | `tool:pickaxe` | `wood` */
   [itemId: string]: number;
 }
 
@@ -75,6 +82,8 @@ export interface World {
   toolHoe: 1 | 2;
   /** 农田地块，长度 = FARM_W * FARM_H，行主序 */
   plots: Plot[];
+  /** 林区树木状态（固定点位，hp=0 已砍倒） */
+  trees: TreeState[];
   inventory: Inventory;
   playerX: number;
   playerY: number;

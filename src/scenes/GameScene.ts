@@ -13,6 +13,7 @@ import { gameZoom } from '../layout';
 import {
   doClear, doHarvest, doHoe, doPlant, doWater,
 } from '../core/actions';
+import { chopTree, treeAt } from '../core/forest';
 import { endDay } from '../core/daycycle';
 import { seasonSeeds } from '../core/economy';
 import { serialize } from '../core/save';
@@ -22,10 +23,12 @@ import { TILE } from '../core/generated/tiles.frames';
 import {
   farmCoord, inMap, plotAt, seasonOf, dayOfSeason,
 } from '../core/world';
-import type { CropId, Facing, World } from '../core/types';
+import type { CropId, Facing, TreeState, World } from '../core/types';
 import type { UIScene } from './UIScene';
 
 const SPEED = 110; // px/s
+/** 脚底相对角色中心的偏移；碰撞、HUD 坐标、存档统一用脚底格 */
+const FOOT_OFFSET = 10;
 
 export class GameScene extends Phaser.Scene {
   world!: World;
@@ -33,6 +36,7 @@ export class GameScene extends Phaser.Scene {
 
   private groundSprites: Phaser.GameObjects.Image[] = [];
   private plotSprites: Phaser.GameObjects.Image[] = [];
+  private treeSprites = new Map<string, Phaser.GameObjects.Image>();
   private activeCrops = new Map<number, Phaser.GameObjects.Sprite>();
   private cropFree: Phaser.GameObjects.Sprite[] = [];
   private player!: Phaser.GameObjects.Sprite;
@@ -54,6 +58,7 @@ export class GameScene extends Phaser.Scene {
     this.world = data.world;
     this.buildMap();
     this.buildActors();
+    this.ensurePlayerWalkable();
     this.buildFx();
     this.refreshAllPlots();
     this.applyWeather();
@@ -100,10 +105,12 @@ export class GameScene extends Phaser.Scene {
     // 特殊建筑 / 水面 / 栅栏
     if (tx === 2 && ty === 2) return true;   // 小屋
     if (tx === 19 && ty === 2) return true;  // 商店
-    if (tx === 15 && ty === 3) return true;  // 出货箱
-    if (tx >= 20 && ty >= 13) return true;   // 水塘
+    if (tx === 15 && ty === 4) return true;  // 出货箱（移到路南，避免道路空气墙）
+    if (tx >= 20 && tx <= 23 && ty >= 13) return true;   // 水塘
     if (ty === 4 && tx >= 3 && tx <= 14 && tx !== 8 && tx !== 9) return true; // 栅栏
     if (ty === 15 && tx >= 3 && tx <= 14) return true;
+    // 林区树木（hp=0 已砍倒，不再阻挡）
+    if (treeAt(this.world, tx, ty)) return true;
     // 农田内的障碍
     const fc = farmCoord(tx, ty);
     if (fc) {
@@ -117,6 +124,17 @@ export class GameScene extends Phaser.Scene {
       if (nx === tx && ny === ty) return true;
     }
     return false;
+  }
+
+  private drawTree(tree: TreeState): void {
+    const img = this.add.image(tree.x * TILE_PX + 16, tree.y * TILE_PX + 16, 'tiles', TILE.tree)
+      .setDepth(8);
+    img.setVisible(tree.hp > 0);
+    this.treeSprites.set(`${tree.x},${tree.y}`, img);
+  }
+
+  private refreshTree(tree: TreeState): void {
+    this.treeSprites.get(`${tree.x},${tree.y}`)?.setVisible(tree.hp > 0);
   }
 
   private buildMap(): void {
@@ -143,20 +161,23 @@ export class GameScene extends Phaser.Scene {
     // 小屋 / 商店 / 出货箱 / 床图标位
     putTile(2, 2, TILE.house);
     putTile(19, 2, TILE.shop);
-    putTile(15, 3, TILE.bin);
+    putTile(15, 4, TILE.bin);
     // 道路
-    for (let x = 2; x <= 19; x++) putTile(x, 3, TILE.path);
+    for (let x = 2; x <= 27; x++) putTile(x, 3, TILE.path);
     putTile(8, 4, TILE.path); putTile(9, 4, TILE.path);
     // 栅栏
     for (let x = 3; x <= 14; x++) {
       if (x !== 8 && x !== 9) putTile(x, 4, TILE.fence);
       putTile(x, 15, TILE.fence);
     }
-    // 水塘
-    for (let y = 13; y <= 15; y++) for (let x = 20; x < MAP_W; x++) putTile(x, y, TILE.water);
+    // 水塘（只保留农场东侧的小水塘，林区从 x=24 开始）
+    for (let y = 13; y <= 15; y++) for (let x = 20; x <= 23; x++) putTile(x, y, TILE.water);
     // 角落树桩装饰
     putTile(0, 0, TILE.stump); putTile(23, 0, TILE.stump);
     putTile(0, 15, TILE.stump); putTile(23, 1, TILE.stump);
+
+    // 林区树木
+    for (const tree of this.world.trees) this.drawTree(tree);
 
     // 农田地块（动态帧：wild / tilled_dry / tilled_wet）
     for (let i = 0; i < FARM_W * FARM_H; i++) {
@@ -169,7 +190,8 @@ export class GameScene extends Phaser.Scene {
 
     // 面朝格光标
     this.facingCursor = this.add.rectangle(0, 0, TILE_PX - 4, TILE_PX - 4)
-      .setStrokeStyle(2, 0xffffff, 0.9).setDepth(5);
+      // 必须高于树(8)/作物(9)/角色(10)，否则砍树时选中框会被树干盖住
+      .setStrokeStyle(2, 0xffffff, 0.9).setDepth(12);
 
     // 夜色遮罩（随时间加深）
     // 夜色遮罩铺满整屏（scrollFactor 0）：以前按地图大小铺，屏幕比地图大时会漏出一角不暗
@@ -255,7 +277,8 @@ export class GameScene extends Phaser.Scene {
       }
       s.setFrame(frame);
       s.setPosition(x * TILE_PX + 16, y * TILE_PX + 14);
-      s.setDepth(5 + y);
+      // 作物是矮作物，统一压在角色下面；以前用 5+y，y>=6 时会飘到角色上层
+      s.setDepth(9);
       s.setVisible(true);
     } else if (existing) {
       existing.setVisible(false);
@@ -373,8 +396,36 @@ export class GameScene extends Phaser.Scene {
   private playerTile(): { x: number; y: number } {
     return {
       x: Math.floor(this.player.x / TILE_PX),
-      y: Math.floor(this.player.y / TILE_PX),
+      // 与碰撞盒一致：用脚底格，而不是角色中心格。
+      // 否则角色站在地图上沿时中心格可能是 -1，存档后重开会卡在越界格。
+      y: Math.floor((this.player.y + FOOT_OFFSET) / TILE_PX),
     };
+  }
+
+  /** 读档位置如果越界/落在实心格，找最近可行走格，绝不把玩家丢在空气墙里 */
+  private ensurePlayerWalkable(): void {
+    const start = this.playerTile();
+    const set = (x: number, y: number) => {
+      this.player.setPosition(x * TILE_PX + 16, y * TILE_PX + 16);
+      this.world.playerX = x;
+      this.world.playerY = y;
+    };
+    if (!this.isBlockedTile(start.x, start.y)) {
+      this.world.playerX = start.x;
+      this.world.playerY = start.y;
+      return;
+    }
+    for (let r = 1; r <= 10; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = start.x + dx;
+          const y = start.y + dy;
+          if (!this.isBlockedTile(x, y)) { set(x, y); return; }
+        }
+      }
+    }
+    set(FARM_OX + 1, FARM_OY - 2); // 最后兜底：出生点
   }
 
   private facingTile(): { x: number; y: number } {
@@ -420,7 +471,7 @@ export class GameScene extends Phaser.Scene {
     else this.setFacing(vy > 0 ? 'down' : 'up');
 
     // 逐轴移动 + 脚部碰撞（脚部小碰撞盒，手感顺滑）
-    const foot = (x: number, y: number) => this.isBlockedTile(Math.floor(x / TILE_PX), Math.floor((y + 10) / TILE_PX));
+    const foot = (x: number, y: number) => this.isBlockedTile(Math.floor(x / TILE_PX), Math.floor((y + FOOT_OFFSET) / TILE_PX));
     const nx = this.player.x + vx * SPEED * dt;
     if (!foot(nx, this.player.y)) this.player.x = nx;
     const ny = this.player.y + vy * SPEED * dt;
@@ -434,6 +485,9 @@ export class GameScene extends Phaser.Scene {
   private updateFacingCursor(): void {
     const t = this.facingTile();
     this.facingCursor.setPosition(t.x * TILE_PX + 16, t.y * TILE_PX + 16);
+    // 对着实心/障碍格时变橙：杂草这种贴地贴图不再看起来像空气墙
+    const blocked = this.isBlockedTile(t.x, t.y);
+    this.facingCursor.setStrokeStyle(2, blocked ? 0xffb347 : 0xffffff, 0.9);
   }
 
   // ------------------------------------------------------------- 动作
@@ -455,8 +509,18 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (t.x === 19 && t.y === 2) { this.tryOpenShop(); return; }
-    if (t.x === 15 && t.y === 3) { (this.scene.get('ui') as UIScene).openSellBin(); return; }
+    if (t.x === 15 && t.y === 4) { (this.scene.get('ui') as UIScene).openSellBin(); return; }
     if (t.x === 2 && t.y === 2) { (this.scene.get('ui') as UIScene).openSleepConfirm(); return; }
+
+    // 林区砍树
+    const tree = treeAt(this.world, t.x, t.y);
+    if (tree) {
+      const r = chopTree(this.world, t.x, t.y);
+      if (r.ok) SFX.till();
+      this.afterAction(r.text, r.ok, r.energy);
+      this.refreshTree(tree);
+      return;
+    }
 
     const fc = farmCoord(t.x, t.y);
     if (!fc) { (this.scene.get('ui') as UIScene).toast('这里没什么可做的'); return; }

@@ -2,10 +2,10 @@
 // 与 GameScene 单向依赖：只调用其公开方法，不直接改地块。
 
 import Phaser from 'phaser';
-import { SEASON_NAMES, SEASON_DAYS } from '../core/config';
-import { CROPS, CROP_ORDER, QUALITY, TOOL_UPGRADES, dailySeedSpecial } from '../core/data';
+import { SEASON_NAMES, SEASON_DAYS, FOREST_X } from '../core/config';
+import { CROPS, CROP_ORDER, QUALITY, RECIPES, TOOL_UPGRADES, dailySeedSpecial, itemName } from '../core/data';
 import {
-  buySeed, buyToolUpgrade, countItem, cropEntries, sellAllCrops, sellCrop, seasonSeeds,
+  buySeed, buyToolUpgrade, countItem, craft, cropEntries, sellAllCrops, sellCrop, seasonSeeds,
 } from '../core/economy';
 import { giveGift, npcDef, talk, tierName, tierOf } from '../core/npc';
 import { exportSave, importSave } from '../core/save';
@@ -43,6 +43,8 @@ export class UIScene extends Phaser.Scene {
   /** 面板存在时的轻提示（☰ 与面板同层，点开后按钮仍可点，需要给个"已打开"的反馈） */
   private tipObj?: Phaser.GameObjects.Container;
   private currentSeedCrop: CropId | null = 'radish';
+  /** 快捷栏当前物品：seed:<crop> / wood / tool:* */
+  private currentQuickItem: string | null = 'seed:radish';
   private settings = loadSettings();
   private resizeTimer?: Phaser.Time.TimerEvent;
   /** 画布内部分辨率 / CSS 像素（= dpr，封顶 2）：HUD 排版用 CSS 像素算，落点到画布要乘它 */
@@ -356,8 +358,9 @@ export class UIScene extends Phaser.Scene {
     const w = this.gameScene.world;
     const season = seasonOf(w.day);
     this.dayText.setText(`第${w.day}天  ${SEASON_NAMES[season]}季 ${dayOfSeason(w.day)}/${SEASON_DAYS}`);
-    // 调试用坐标：tile 坐标，随移动每帧更新
-    this.timeText.setText(`${clockText(w.minute)}  坐标 (${w.playerX},${w.playerY})`);
+    // 调试/定位：地图名在坐标左边；x>=FOREST_X 即林区
+    const mapName = w.playerX >= FOREST_X ? '林区' : '村庄';
+    this.timeText.setText(`${clockText(w.minute)}  ${mapName}  坐标 (${w.playerX},${w.playerY})`);
     this.goldText.setText(String(w.gold));
     this.weatherIcon.setFrame(w.weather === 'rain' ? UI.rain : UI.sun);
     const ratio = Phaser.Math.Clamp(w.energy / w.maxEnergy, 0, 1);
@@ -371,18 +374,35 @@ export class UIScene extends Phaser.Scene {
   private syncSeedBtn(): void {
     if (!this.seedIcon) return;
     const w = this.gameScene.world;
-    // 当前选中种子没货了 → 自动切到有货的
-    if (this.currentSeedCrop && countItem(w.inventory, 'seed:' + this.currentSeedCrop) <= 0) {
+    let item = this.currentQuickItem;
+    let qty = item ? countItem(w.inventory, item) : 0;
+    // 当前快捷物品没货了 → 自动切到有货的种子
+    if (!item || qty <= 0) {
       const owned = CROP_ORDER.find((c) => countItem(w.inventory, 'seed:' + c) > 0);
-      this.currentSeedCrop = owned ?? null;
+      item = owned ? `seed:${owned}` : null;
+      qty = owned ? countItem(w.inventory, `seed:${owned}`) : 0;
+      this.currentQuickItem = item;
     }
-    if (this.currentSeedCrop) {
-      this.seedIcon.setVisible(true).setFrame((UI as Record<string, number>)[CROPS[this.currentSeedCrop].uiFrame]);
-      this.seedText.setText(`×${countItem(w.inventory, 'seed:' + this.currentSeedCrop)}`);
+    this.currentSeedCrop = item?.startsWith('seed:') ? item.slice(5) as CropId : null;
+    if (item && qty > 0) {
+      this.seedIcon.setVisible(true).setFrame(this.quickFrame(item));
+      this.seedText.setText(`×${qty}`);
     } else {
       this.seedIcon.setVisible(false);
       this.seedText.setText('空');
     }
+  }
+
+  private quickFrame(item: string): number {
+    if (item.startsWith('seed:')) {
+      const crop = item.slice(5) as CropId;
+      return (UI as Record<string, number>)[CROPS[crop].uiFrame] ?? UI.basket;
+    }
+    if (item === 'wood') return UI.basket;
+    if (item === 'tool:can2') return UI.can;
+    if (item === 'tool:hoe2') return UI.hoe_up;
+    if (item === 'tool:pickaxe') return UI.hoe;
+    return UI.basket;
   }
 
   // ------------------------------------------------------------- 按钮
@@ -453,7 +473,7 @@ export class UIScene extends Phaser.Scene {
     this.seedText = this.add.text(slot * 0.22, slot * 0.16, '', {
       fontSize: `${Math.round(slot * 0.28)}px`, color: '#f4ead8', fontFamily: 'sans-serif',
     }).setOrigin(0.5);
-    const hint = this.add.text(0, -slot / 2 - 9 * S, '种子', {
+    const hint = this.add.text(0, -slot / 2 - 9 * S, '快捷', {
       fontSize: `${Math.round(slot * 0.2)}px`, color: '#c9a06b', fontFamily: 'sans-serif',
     }).setOrigin(0.5);
     this.seedBtn.add([sbBg, this.seedIcon, this.seedText, hint]);
@@ -461,12 +481,8 @@ export class UIScene extends Phaser.Scene {
       new Phaser.Geom.Rectangle(-slot / 2, -slot / 2, slot, slot), Phaser.Geom.Rectangle.Contains,
     );
     this.seedBtn.on('pointerup', () => {
-      const w = this.gameScene.world;
-      const owned = CROP_ORDER.filter((c) => countItem(w.inventory, 'seed:' + c) > 0);
-      if (owned.length === 0) { this.toast('没有种子，去商店买吧'); return; }
-      const idx = this.currentSeedCrop ? owned.indexOf(this.currentSeedCrop) : -1;
-      this.currentSeedCrop = owned[(idx + 1) % owned.length];
       SFX.ui();
+      this.openQuickbar();
     });
 
     // 系统按钮（右上角）：必须高于 HUD 背景条，否则事件被 HUD 吃掉。
@@ -504,6 +520,7 @@ export class UIScene extends Phaser.Scene {
 
   setCurrentSeed(c: CropId): void {
     this.currentSeedCrop = c;
+    this.currentQuickItem = `seed:${c}`;
   }
 
   // ------------------------------------------------------------- 提示
@@ -715,6 +732,146 @@ export class UIScene extends Phaser.Scene {
     panel.body.add(label(this, -270, y + 10, `当前金币：${w.gold}G`, { color: '#f2e06a' }));
   }
 
+  /** 快捷栏选择器：点右下角槽位打开，切换种子/木头/木镐 */
+  private openQuickbar(): void {
+    if (this.panelOpen) return;
+    this.panelOpen = true;
+    this.pauseGame(true);
+    const panel = makePanel(this, '快捷栏', () => {
+      this.panelOpen = false; this.pauseGame(false); this.activePanel = null;
+    });
+    this.activePanel = panel;
+    this.placePanel(panel);
+    const w = this.gameScene.world;
+
+    const select = (id: string) => {
+      this.currentQuickItem = id;
+      this.currentSeedCrop = id.startsWith('seed:') ? id.slice(5) as CropId : null;
+      this.syncSeedBtn();
+      SFX.ui();
+      panel.close();
+    };
+
+    const seeds = CROP_ORDER.filter((c) => countItem(w.inventory, 'seed:' + c) > 0);
+    panel.body.add(label(this, -270, 22, '种子', { size: 15, color: '#f2e06a' }));
+    if (seeds.length === 0) {
+      panel.body.add(label(this, -260, 50, '没有种子，去商店买吧。', { size: 14, color: '#c9a06b' }));
+    }
+    seeds.forEach((c, i) => {
+      const x = i % 2 === 0 ? -140 : 140;
+      const y = 50 + Math.floor(i / 2) * 44;
+      const id = `seed:${c}`;
+      panel.body.add(textButton(this, x, y, 230, 36,
+        `${CROPS[c].name} ×${countItem(w.inventory, id)}`, () => select(id),
+        { bg: this.currentQuickItem === id ? 0x8a6a2a : 0x3f7d5a, fontSize: 15 }));
+    });
+
+    let itemY = 50 + Math.ceil(seeds.length / 2) * 44 + 12;
+    panel.body.add(label(this, -270, itemY, '道具 / 材料', { size: 15, color: '#f2e06a' }));
+    itemY += 28;
+    const items: Array<{ id: string; label: string }> = [];
+    const wood = countItem(w.inventory, 'wood');
+    if (wood > 0) items.push({ id: 'wood', label: `木头 ×${wood}` });
+    if (countItem(w.inventory, 'tool:pickaxe') > 0) items.push({ id: 'tool:pickaxe', label: '木镐子' });
+    if (items.length === 0) {
+      panel.body.add(label(this, -260, itemY, '暂无可切换道具，去林区砍树试试。', { size: 14, color: '#c9a06b' }));
+    }
+    items.forEach((it, i) => {
+      const x = i % 2 === 0 ? -140 : 140;
+      const y = itemY + Math.floor(i / 2) * 44;
+      panel.body.add(textButton(this, x, y, 230, 36, it.label, () => select(it.id),
+        { bg: this.currentQuickItem === it.id ? 0x8a6a2a : 0x3f7d5a, fontSize: 15 }));
+    });
+    panel.body.add(label(this, -270, 285, '种子决定播种；木头/工具暂时只切换快捷显示。', { size: 12, color: '#c9a06b' }));
+  }
+
+  /** 物品栏：种子 / 作物 / 材料 / 工具分两列展示 */
+  private openInventory(): void {
+    if (this.panelOpen) return;
+    this.panelOpen = true;
+    this.pauseGame(true);
+    const panel = makePanel(this, '物品栏', () => {
+      this.panelOpen = false; this.pauseGame(false); this.activePanel = null;
+    });
+    this.activePanel = panel;
+    this.placePanel(panel);
+    const w = this.gameScene.world;
+
+    const seedLines = CROP_ORDER
+      .map((c) => ({ c, n: countItem(w.inventory, 'seed:' + c) }))
+      .filter((e) => e.n > 0)
+      .map((e) => `${CROPS[e.c].name}种子 ×${e.n}`);
+    const cropLines = cropEntries(w.inventory).map((e) =>
+      `${itemName(`crop:${e.crop}:${e.quality}`)} ×${e.n}`);
+    const materialLines = [`木头 ×${countItem(w.inventory, 'wood')}`];
+    const toolLines: string[] = [];
+    toolLines.push(w.toolCan === 2 ? '铜洒水壶（3 格浇水）' : '旧洒水壶');
+    toolLines.push(w.toolHoe === 2 ? '铜锄头（2 格开垦）' : '旧锄头');
+    if (countItem(w.inventory, 'tool:pickaxe') > 0) toolLines.push('木镐子（挖矿用）');
+
+    const drawBlock = (x: number, startY: number, title: string, lines: string[], max = 8): number => {
+      panel.body.add(label(this, x, startY, title, { size: 15, color: '#f2e06a' }));
+      let yy = startY + 24;
+      for (const line of lines.slice(0, max)) {
+        panel.body.add(label(this, x + 8, yy, line, { size: 14 }));
+        yy += 21;
+      }
+      if (lines.length > max) {
+        panel.body.add(label(this, x + 8, yy, `…还有 ${lines.length - max} 项`, { size: 12, color: '#c9a06b' }));
+        yy += 18;
+      }
+      return yy + 8;
+    };
+
+    let leftY = 24;
+    leftY = drawBlock(-270, leftY, '种子', seedLines, 6);
+    leftY = drawBlock(-270, leftY, '材料', materialLines, 2);
+    let rightY = 24;
+    rightY = drawBlock(10, rightY, '作物', cropLines, 6);
+    rightY = drawBlock(10, rightY, '工具', toolLines, 8);
+    const bottom = Math.max(leftY, rightY);
+    if (bottom < 290) {
+      panel.body.add(label(this, -270, bottom + 8, '砍树：站到树旁边，面朝树按「互动」。', { size: 12, color: '#c9a06b' }));
+    }
+  }
+
+  /** 制作台：先做一把木镐子，矿洞系统后续接 */
+  private openCrafting(): void {
+    if (this.panelOpen) return;
+    this.panelOpen = true;
+    this.pauseGame(true);
+    const panel = makePanel(this, '制作台', () => {
+      this.panelOpen = false; this.pauseGame(false); this.activePanel = null;
+    });
+    this.activePanel = panel;
+    this.placePanel(panel);
+    const render = () => {
+      panel.body.removeAll(true);
+      const w = this.gameScene.world;
+      const wood = countItem(w.inventory, 'wood');
+      panel.body.add(label(this, -270, 24, `木头：${wood}`, { size: 16, color: '#f2e06a' }));
+      let y = 70;
+      for (const recipe of RECIPES) {
+        const owned = recipe.result.startsWith('tool:') && countItem(w.inventory, recipe.result) > 0;
+        const enough = Object.entries(recipe.cost).every(([id, n]) => countItem(w.inventory, id) >= n);
+        panel.body.add(label(this, -270, y, `${recipe.name}`, { size: 18, color: '#f4ead8' }));
+        panel.body.add(label(this, -270, y + 26, `${recipe.desc} · 木头 ${countItem(w.inventory, 'wood')} / ${recipe.cost.wood ?? 0}`, { size: 14, color: '#c9a06b' }));
+        const btn = textButton(this, 180, y + 24, 150, 40,
+          owned ? '已拥有' : enough ? '制作' : '材料不足', () => {
+            if (owned) return;
+            const r = craft(w, recipe.id);
+            this.toast(r.text);
+            if (r.ok) SFX.coin(); else SFX.fail();
+            render();
+          }, { bg: owned ? 0x555f55 : enough ? 0x3f7d5a : 0x5b5044, fontSize: 16 });
+        panel.body.add(btn);
+        y += 92;
+      }
+      panel.body.add(label(this, -270, y + 20, '砍树：站到树旁边，面朝树按「互动」。', { size: 14, color: '#c9a06b' }));
+    };
+    render();
+  }
+
   openSellBin(): void {
     // 出货箱 = 商店的出售页（随时随地卖，方便手机操作）
     this.openShop('sell');
@@ -921,12 +1078,22 @@ export class UIScene extends Phaser.Scene {
         this.openSystem();
       }, { bg: 0x5b5044, fontSize: 17 });
 
-    const help = textButton(this, 170, 130, 260, 46, '操作说明', () => {
+    const inventory = textButton(this, 170, 130, 260, 46, '物品栏', () => {
+      panel.close();
+      this.openInventory();
+    }, { bg: 0x5b5044, fontSize: 17 });
+
+    const help = textButton(this, -170, 190, 260, 46, '操作说明', () => {
       this.toast('左下拖动移动 / 右下按钮做动作 / 种子槽点按切换 / 走到商店、出货箱、小屋前按动作键');
     }, { bg: 0x5b5044, fontSize: 17 });
 
+    const crafting = textButton(this, 170, 190, 260, 46, '制作台', () => {
+      panel.close();
+      this.openCrafting();
+    }, { bg: 0x5b5044, fontSize: 17 });
+
     // 按钮文案里直接带当前模式：不点进诊断也能一眼确认「这是 PWA 还是标签页」
-    const env = textButton(this, 0, 190, 545, 46,
+    const env = textButton(this, 0, 250, 545, 46,
       `环境诊断（当前：${isStandaloneApp() ? 'PWA 独立模式' : '标签页模式'}）`, () => {
         panel.close();
         this.panelOpen = false;
@@ -935,9 +1102,9 @@ export class UIScene extends Phaser.Scene {
         this.openEnvDiag();
       }, { bg: 0x5b5044, fontSize: 17 });
 
-    const stats = label(this, -270, 244,
+    const stats = label(this, -270, 300,
       `已收获 ${w.stats.harvested} 份作物 · 累计收入 ${w.stats.earned}G · 昏倒 ${w.stats.collapsedCount} 次`, { size: 14, color: '#c9a06b' });
-    panel.body.add([exp, imp, sfxToggle, help, env, stats]);
+    panel.body.add([exp, imp, sfxToggle, inventory, help, crafting, env, stats]);
   }
 
   /**

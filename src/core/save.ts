@@ -4,10 +4,10 @@
 //   World 新增字段时必须在这里登记一行，漏登记 = 用户数据静默丢失。
 //   不写 `{ ...defaults, ...raw }` 这种展开 —— 脏数据会原样进内存。
 
-import { FARM_H, FARM_W, SAVE_FMT as FMT_CURRENT } from './config';
-import { NPCS } from './data';
+import { FARM_H, FARM_W, MAP_H, MAP_W, SAVE_FMT as FMT_CURRENT, TREE_HP } from './config';
+import { NPCS, TREE_SPOTS } from './data';
 import { createWorld } from './world';
-import type { Facing, Inventory, Plot, Season, Weather, World } from './types';
+import type { Facing, Inventory, Plot, Season, TreeState, Weather, World } from './types';
 
 // ---------------------------------------------------------------- 基础类型守卫
 
@@ -63,7 +63,7 @@ function normalizeInventory(raw: unknown): Inventory {
   if (!isObj(raw)) return inv;
   for (const k of Object.keys(raw)) {
     const n = int(raw[k], 0);
-    if (n > 0 && /^(seed:(radish|pea|corn|pumpkin|strawberry|sweetpotato)|crop:(radish|pea|corn|pumpkin|strawberry|sweetpotato):(norm|sil|gold)|tool:(can2|hoe2))$/.test(k)) {
+    if (n > 0 && /^(seed:(radish|pea|corn|pumpkin|strawberry|sweetpotato)|crop:(radish|pea|corn|pumpkin|strawberry|sweetpotato):(norm|sil|gold)|tool:(can2|hoe2|pickaxe)|wood)$/.test(k)) {
       inv[k] = n;
     }
   }
@@ -85,6 +85,21 @@ function normalizeNpcs(raw: unknown): World['npcs'] {
   return npcs;
 }
 
+/** 树木按固定点位重建：只认白名单里的点，避免脏档把碰撞铺到任意位置 */
+function normalizeTrees(raw: unknown): TreeState[] {
+  const byPos = new Map<string, number>();
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (!isObj(item)) continue;
+      const x = int(item.x, -1);
+      const y = int(item.y, -1);
+      if (x < 0 || y < 0) continue;
+      byPos.set(`${x},${y}`, Math.min(TREE_HP, Math.max(0, int(item.hp, TREE_HP))));
+    }
+  }
+  return TREE_SPOTS.map(([x, y]) => ({ x, y, hp: byPos.get(`${x},${y}`) ?? TREE_HP }));
+}
+
 // ---------------------------------------------------------------- 迁移链
 // 用整数格式号链式迁移：`if (fmt < N)`。数字比较天然正确，
 // 千万别用版本字符串比较（'1.9' < '1.13' 在字符串下是 false）。
@@ -92,7 +107,8 @@ function normalizeNpcs(raw: unknown): World['npcs'] {
 function migrateFrom(raw: Obj, fmt: number): { data: Obj; fmt: number } {
   let data = raw;
   let f = fmt;
-  // if (f < 2) { data = migrate0to1(data); f = 2; }
+  // v1 → v2：新增林区树木；旧档没有 trees，normalizeTrees() 会按固定点位补满，无需改旧字段。
+  if (f < 2) f = 2;
   return { data, fmt: f };
 }
 
@@ -133,11 +149,13 @@ export function normalizeWorld(raw: unknown): World {
     plots: Array.isArray(o.plots)
       ? o.plots.slice(0, FARM_W * FARM_H).map(normalizePlot)
       : base.plots,
+    // trees —— 必须登记：林区固定点位 + hp
+    trees: o.trees === undefined ? base.trees : normalizeTrees(o.trees),
     // inventory —— 必须登记（老档/新档都没有 inventory 时回落初始背包）
     inventory: o.inventory === undefined ? base.inventory : normalizeInventory(o.inventory),
-    // playerX / playerY / facing —— 必须登记：玩家位置
-    playerX: int(o.playerX, base.playerX),
-    playerY: int(o.playerY, base.playerY),
+    // playerX / playerY —— 必须登记；夹到地图内，避免旧档 y=-1 读档后卡在空气墙
+    playerX: Math.min(MAP_W - 1, Math.max(0, int(o.playerX, base.playerX))),
+    playerY: Math.min(MAP_H - 1, Math.max(0, int(o.playerY, base.playerY))),
     facing: (['down', 'left', 'right', 'up'].includes(str(o.facing, 'down'))
       ? str(o.facing, 'down') : 'down') as Facing,
     // npcs —— 必须登记：好感度

@@ -240,6 +240,8 @@ for (const vp of [{ name: '竖屏 390×844', width: 390, height: 844 }, { name: 
     const box = (await page.locator('#game canvas').boundingBox())!;
     await page.evaluate(() => {
       const u = (window as unknown as any).__vale.scene.scene.get('ui');
+      // 竖屏建议卡片是 DOM 覆盖层，会吃掉系统面板按钮的触摸；这里按真实用户路径先关掉它
+      document.querySelector('#rotate-tip')?.remove();
       u.closeTopPanel();
       u.openSystem();
     });

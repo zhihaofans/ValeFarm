@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { doHoe, doPlant, doHarvest } from '../../src/core/actions';
 import {
-  buySeed, buyToolUpgrade, cropEntries, sellAllCrops, sellCrop, seasonSeeds,
+  buySeed, buyToolUpgrade, craft, cropEntries, sellAllCrops, sellCrop, seasonSeeds,
 } from '../../src/core/economy';
 import { sellPrice, dailySeedSpecial } from '../../src/core/data';
 import { createWorld } from '../../src/core/world';
@@ -84,5 +84,16 @@ describe('经济', () => {
     expect(w.toolCan).toBe(2);
     expect(buyToolUpgrade(w, 'tool:can2').ok).toBe(false);
     expect(w.gold).toBe(4200);
+  });
+
+  it('制作台：3 木头做木镐，材料不足/重复制作会失败', () => {
+    const w = createWorld();
+    expect(craft(w, 'recipe:pickaxe').ok).toBe(false);
+    w.inventory.wood = 3;
+    const r = craft(w, 'recipe:pickaxe');
+    expect(r.ok).toBe(true);
+    expect(w.inventory.wood).toBeUndefined();
+    expect(w.inventory['tool:pickaxe']).toBe(1);
+    expect(craft(w, 'recipe:pickaxe').ok).toBe(false);
   });
 });

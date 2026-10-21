@@ -3,12 +3,14 @@
 /** 农田尺寸（可耕种区域 12×10，符合 10×10~16×12 的 MVP 约定） */
 export const FARM_W = 12;
 export const FARM_H = 10;
-/** 农田在整张大地图中的左上角（地图 24×16） */
+/** 农田在整张大地图中的左上角（地图 40×16，东侧为林区） */
 export const FARM_OX = 3;
 export const FARM_OY = 5;
 
-export const MAP_W = 24;
+export const MAP_W = 40;
 export const MAP_H = 16;
+/** 林区起点（x >= FOREST_X 属于林区，HUD 地图名也用它） */
+export const FOREST_X = 24;
 export const TILE_PX = 32;
 
 /** 1 游戏分钟 = 350ms 真实时间 → 一天( awake 6:00→次日2:00, 1200 分钟 )约 7 分钟 */
@@ -31,6 +33,7 @@ export const ENERGY = {
   clearWeed: 3,
   clearStone: 6,
   clearStump: 10,
+  chop: 4,
   talk: 0,
 } as const;
 
@@ -56,5 +59,9 @@ export const DB_NAME = 'vale-farm';
 export const DB_VERSION = 1;
 export const SETTINGS_KEY = 'vale-farm.settings';
 
+/** 林区树木：每棵树 3 次砍伐，倒后给 2 木头 */
+export const TREE_HP = 3;
+export const TREE_WOOD = 2;
+
 /** 当前存档格式号：改 World 结构时 +1，并在 save.ts 的 migrateFrom 里加一档 */
-export const SAVE_FMT = 1;
+export const SAVE_FMT = 2;

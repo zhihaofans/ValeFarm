@@ -202,12 +202,26 @@ def water_tile():
 
 def weed_tile():
     img = grass_tile(21, False)
-    d = ImageDraw.Draw(img)
-    for (x, y) in ((4, 11), (5, 10), (6, 11), (10, 12), (11, 11), (12, 12)):
-        d.point((x, y), fill='#2f5f22')
-    for (x, y) in ((4, 9), (6, 9), (11, 9)):
-        d.point((x, y), fill='#4f9436')
-        d.point((x, y - 1), fill='#65b046')
+    art = [
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '.......g........',
+        '......gGg.......',
+        '.....gGgGg......',
+        '....gGg.gGg.....',
+        '...gGg.g.gGg....',
+        '...ggGgGgGgg....',
+        '....gG.G.Gg.....',
+        '.....s...s......',
+        '......s.s.......',
+        '................',
+        '................',
+    ]
+    pal = {'g': '#65b046', 'G': '#2f6b2a', 's': '#3a6f28'}
+    img.alpha_composite(art_to_img(art, pal))
     return img
 
 
@@ -282,6 +296,31 @@ def fence_tile():
         'WwWwwwwwwwwwwWwW',
     ]
     pal = {'W': '#6b482a', 'w': '#a2764c'}
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
+def tree_tile():
+    img = grass_tile(19, False)
+    art = [
+        '................',
+        '.....GGGGGG.....',
+        '...GGggggGGG....',
+        '..GgggggggggG...',
+        '..GgggggggggG...',
+        '..GgggggggggG...',
+        '...GGggggGGG....',
+        '.....GGGGGG.....',
+        '......WWWW......',
+        '......WwwW......',
+        '......WwwW......',
+        '......WwwW......',
+        '......WwwW......',
+        '.....WWwwWW.....',
+        '................',
+        '................',
+    ]
+    pal = {'G': '#2f6b2a', 'g': '#4a9136', 'W': '#5b3c22', 'w': '#8a5c34'}
     img.alpha_composite(art_to_img(art, pal))
     return img
 
@@ -405,6 +444,7 @@ TILE_LIST = [
     ('stone', stone_tile()),
     ('stump', stump_tile()),
     ('fence', fence_tile()),
+    ('tree', tree_tile()),
     ('house', house_tile()),
     ('shop', shop_tile()),
     ('bin', bin_tile()),

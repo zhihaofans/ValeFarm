@@ -118,6 +118,52 @@ export const TOOL_UPGRADES = [
   },
 ] as const;
 
+// ---------------------------------------------------------------- 林区 / 制作
+
+/** 林区树木固定点位（tile）；不在道路/水塘/农田上 */
+export const TREE_SPOTS: Array<[number, number]> = [
+  [26, 5], [29, 6], [32, 4], [35, 6], [38, 8],
+  [27, 9], [31, 10], [34, 9], [37, 11],
+  [26, 13], [30, 13], [34, 13],
+];
+
+export interface RecipeDef {
+  id: string;
+  name: string;
+  desc: string;
+  /** itemId → 数量 */
+  cost: Record<string, number>;
+  result: string;
+}
+
+/** 制作台配方：木镐先做出来，矿洞系统后续接 */
+export const RECIPES: RecipeDef[] = [
+  {
+    id: 'recipe:pickaxe',
+    name: '木镐子',
+    desc: '挖矿用（矿洞后续开放）· 3 木头',
+    cost: { wood: 3 },
+    result: 'tool:pickaxe',
+  },
+];
+
+/** 背包/制作台展示名 */
+export function itemName(id: string): string {
+  if (id === 'wood') return '木头';
+  if (id === 'tool:pickaxe') return '木镐子';
+  if (id === 'tool:can2') return '铜洒水壶';
+  if (id === 'tool:hoe2') return '铜锄头';
+  if (id.startsWith('seed:')) {
+    const crop = id.slice(5) as CropId;
+    return CROPS[crop] ? `${CROPS[crop].name}种子` : id;
+  }
+  if (id.startsWith('crop:')) {
+    const [, crop, q] = id.split(':') as [string, CropId, Quality];
+    return CROPS[crop] ? `${CROPS[crop].name}（${QUALITY[q]?.name ?? q}）` : id;
+  }
+  return id;
+}
+
 // ---------------------------------------------------------------- NPC
 
 export interface NpcDef {

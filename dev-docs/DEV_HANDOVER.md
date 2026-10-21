@@ -30,7 +30,7 @@ npm run dev -- --host   # 手机同局域网调试（需 https 或 localhost 才
 
 npm run build        # 类型检查 + 构建 → docs/
 npm run preview      # 预览构建产物 :4173
-npm test             # 单元测试（vitest，79 条，秒级）
+npm test             # 单元测试（vitest，84 条，秒级）
 npm run test:e2e     # 端到端（playwright，38 条，约 50 秒）
 npm run package      # 打 zip（源码 + docs/）
 ```
@@ -65,6 +65,7 @@ src/
 │   ├── actions.ts     玩家动作：锄地、播种、浇水、收获、清理
 │   ├── economy.ts     买卖、算价
 │   ├── daycycle.ts    每日结算（作物生长、体力恢复、昏倒惩罚）
+│   ├── forest.ts      林区树木状态与砍伐
 │   ├── npc.ts         好感度、送礼、对话
 │   ├── save.ts        ★ 存档序列化 / 反序列化 / 字段归一化 / 版本迁移
 │   ├── storage.ts     IndexedDB 封装（失败降级 localStorage）
@@ -186,7 +187,7 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 
 ## 6. 测试策略
 
-### 单元测试（79 条，`tests/unit/`）
+### 单元测试（84 条，`tests/unit/`）
 
 全是 `core/` 的纯函数，不碰浏览器。改了经济、存档、作物、NPC 逻辑必须保持绿。
 
@@ -196,7 +197,8 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 | `layout.test.ts` | 相机 zoom 换算、任意比例下地块不变形 |
 | `safe-insets.test.ts` | 安全区读取、上限夹取、iOS 判定（含 iPadOS 伪装 Mac 的坑） |
 | `viewport-inset.test.ts` | ★ 视口是否已让开、`uiInsets` 与 `contentInsets` 的分工 |
-| `crops.test.ts` / `economy.test.ts` / `npc.test.ts` | 作物阶段、买卖算价、好感度边界 |
+| `crops.test.ts` / `economy.test.ts` / `npc.test.ts` | 作物阶段、买卖算价、每日特价、制作、好感度边界 |
+| `forest.test.ts` | 树木点位、砍伐次数、木头产出、体力不足 |
 
 ### E2E（38 条，`tests/e2e/`）
 

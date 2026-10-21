@@ -131,6 +131,30 @@ describe('存档 normalize', () => {
     expect(w.plots[0].crop?.stage).toBe(1);
   });
 
+  it('林区树木 hp、木头和木镐都能存档往返；老档补默认树', () => {
+    const w = createWorld();
+    w.trees[0].hp = 1;
+    w.inventory.wood = 4;
+    w.inventory['tool:pickaxe'] = 1;
+    const back = deserialize(serialize(w))!;
+    expect(back.trees[0].hp).toBe(1);
+    expect(back.inventory.wood).toBe(4);
+    expect(back.inventory['tool:pickaxe']).toBe(1);
+
+    const old = normalizeWorld({ fmt: 1, day: 3 });
+    expect(old.trees.length).toBe(12);
+    expect(old.trees.every((t) => t.hp === 3)).toBe(true);
+  });
+
+  it('玩家坐标会夹到地图内，y=-1 不会读档后卡在空气墙', () => {
+    const w = normalizeWorld({ playerX: 13, playerY: -1 });
+    expect(w.playerX).toBe(13);
+    expect(w.playerY).toBe(0);
+    const far = normalizeWorld({ playerX: -5, playerY: 999 });
+    expect(far.playerX).toBe(0);
+    expect(far.playerY).toBe(15);
+  });
+
   it('非法存档 JSON 返回 null（不白屏）', () => {
     expect(deserialize('{not json')).toBeNull();
     expect(importSave('nonsense')).toBeNull();

@@ -18,6 +18,21 @@ declare const __BUILD_TIME__: string;
 const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 const APP_BUILD = typeof __APP_BUILD__ === 'string' ? __APP_BUILD__ : '-';
 const BUILD_TIME = typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : '';
+/**
+ * dev server 的 __APP_VERSION__ 是启动时注入的，发版后不重启会一直显示旧版本。
+ * 诊断面板运行时再拉一次 version.json，保证标签页/PWA 都能看到当前部署版本。
+ */
+let liveVersion: { ver: string; build: string } | null = null;
+if (typeof fetch === 'function' && typeof location !== 'undefined') {
+  void fetch('./version.json', { cache: 'no-store' })
+    .then((r) => r.json())
+    .then((m: { ver?: unknown; build?: unknown }) => {
+      if (typeof m.ver === 'string') {
+        liveVersion = { ver: m.ver, build: String(m.build ?? '') };
+      }
+    })
+    .catch(() => { /* 离线/开发未生成时回退到 Vite 注入值 */ });
+}
 /** 模块载入时间：PWA 里能看到这次页面到底是什么时候拉起的 */
 const PAGE_LOADED_AT = new Date();
 /** 构建产物名（生产是 index-xxxx.js，dev 是 envDiag.ts） */
@@ -90,7 +105,7 @@ export function collectEnvDiag(input: EnvDiagInput): EnvDiag {
     : (ios && standalone ? 'iOS PWA 兜底 59/34（env 全 0）' : '全 0：系统未遮挡内容');
 
   const rows: [string, string][] = [
-    ['版本 / 构建', `${APP_VERSION} / build ${APP_BUILD}`],
+    ['版本 / 构建', `${liveVersion?.ver ?? APP_VERSION} / build ${liveVersion?.build ?? APP_BUILD}`],
     ['构建时间', BUILD_TIME ? fmtTime(BUILD_TIME) : 'dev（Vite 未注入）'],
     ['本次载入', fmtTime(PAGE_LOADED_AT)],
     ['前端资源', RESOURCE_NAME],
