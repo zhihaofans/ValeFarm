@@ -106,6 +106,11 @@ export class GameScene extends Phaser.Scene {
     if (tx === 2 && ty === 2) return true;   // 小屋
     if (tx === 19 && ty === 2) return true;  // 商店
     if (tx === 15 && ty === 4) return true;  // 出货箱（移到路南，避免道路空气墙）
+    if (tx === 23 && ty === 1) return true;  // 村庄第二栋小屋
+    if (tx === 21 && ty === 5) return true;  // 水井
+    if ((tx === 17 || tx === 20) && ty === 6) return true; // 长椅
+    if ((tx === 16 || tx === 23) && ty === 4) return true; // 路灯
+    if (tx === 16 && ty === 5) return true;  // 村庄木牌
     if (tx >= 20 && tx <= 23 && ty >= 13) return true;   // 水塘
     if (ty === 4 && tx >= 3 && tx <= 14 && tx !== 8 && tx !== 9) return true; // 栅栏
     if (ty === 15 && tx >= 3 && tx <= 14) return true;
@@ -158,6 +163,9 @@ export class GameScene extends Phaser.Scene {
       this.groundSprites.push(img);
       return img;
     };
+    const putProp = (tx: number, ty: number, frame: number, depth = 6) => {
+      this.add.image(tx * TILE_PX + 16, ty * TILE_PX + 16, 'tiles', frame).setDepth(depth);
+    };
     // 小屋 / 商店 / 出货箱 / 床图标位
     putTile(2, 2, TILE.house);
     putTile(19, 2, TILE.shop);
@@ -165,6 +173,9 @@ export class GameScene extends Phaser.Scene {
     // 道路
     for (let x = 2; x <= 27; x++) putTile(x, 3, TILE.path);
     putTile(8, 4, TILE.path); putTile(9, 4, TILE.path);
+    // 村庄广场：商店/NPC 东侧的小广场，接第二栋小屋
+    for (let y = 4; y <= 7; y++) for (let x = 16; x <= 23; x++) putTile(x, y, TILE.path);
+    for (let x = 20; x <= 23; x++) putTile(x, 2, TILE.path);
     // 栅栏
     for (let x = 3; x <= 14; x++) {
       if (x !== 8 && x !== 9) putTile(x, 4, TILE.fence);
@@ -174,7 +185,20 @@ export class GameScene extends Phaser.Scene {
     for (let y = 13; y <= 15; y++) for (let x = 20; x <= 23; x++) putTile(x, y, TILE.water);
     // 角落树桩装饰
     putTile(0, 0, TILE.stump); putTile(23, 0, TILE.stump);
-    putTile(0, 15, TILE.stump); putTile(23, 1, TILE.stump);
+    putTile(0, 15, TILE.stump);
+    // 广场花圃
+    for (const [x, y] of [[15, 5], [15, 6], [24, 5], [24, 6]] as Array<[number, number]>) {
+      putTile(x, y, (x + y) % 2 ? TILE.grass_b : TILE.grass_c);
+    }
+
+    // 村庄装饰（实心，部分可互动）
+    putProp(23, 1, TILE.house);
+    putProp(21, 5, TILE.well);
+    putProp(17, 6, TILE.bench);
+    putProp(20, 6, TILE.bench);
+    putProp(16, 4, TILE.lamp);
+    putProp(23, 4, TILE.lamp);
+    putProp(16, 5, TILE.sign);
 
     // 林区树木
     for (const tree of this.world.trees) this.drawTree(tree);
@@ -511,6 +535,16 @@ export class GameScene extends Phaser.Scene {
     if (t.x === 19 && t.y === 2) { this.tryOpenShop(); return; }
     if (t.x === 15 && t.y === 4) { (this.scene.get('ui') as UIScene).openSellBin(); return; }
     if (t.x === 2 && t.y === 2) { (this.scene.get('ui') as UIScene).openSleepConfirm(); return; }
+    if (t.x === 16 && t.y === 5) {
+      (this.scene.get('ui') as UIScene).toast('微光村：西边是农场，东边是林区。');
+      SFX.ui();
+      return;
+    }
+    if (t.x === 21 && t.y === 5) {
+      (this.scene.get('ui') as UIScene).toast('井水清凉，倒映着今天的云。');
+      SFX.ui();
+      return;
+    }
 
     // 林区砍树
     const tree = treeAt(this.world, t.x, t.y);

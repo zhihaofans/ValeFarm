@@ -350,6 +350,106 @@ def house_tile():
     return img
 
 
+def well_tile():
+    art = [
+        '................',
+        '................',
+        '................',
+        '....SSSSSSSS....',
+        '...SwwwwwwwwS...',
+        '..SwwwwwwwwwwS..',
+        '..SwWWWWWWWWwS..',
+        '..SwWaaaaaaWwS..',
+        '..SwWaaaaaaWwS..',
+        '..SwWWWWWWWWwS..',
+        '..SwwwwwwwwwwS..',
+        '...SwwwwwwwwS...',
+        '....SSSSSSSS....',
+        '.......WW.......',
+        '......WwwW......',
+        '................',
+    ]
+    pal = {'S': '#5b5b5b', 'w': '#9d9d9d', 'W': '#6f6f6f', 'a': '#4f8fbf'}
+    img = canvas16()
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
+def bench_tile():
+    art = [
+        '................',
+        '................',
+        '................',
+        '...WWWWWWWWWW...',
+        '..WwwwwwwwwwwW..',
+        '..WwwwwwwwwwwW..',
+        '..WWWWWWWWWWWW..',
+        '..W..........W..',
+        '..W..........W..',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+    ]
+    pal = {'W': '#6b482a', 'w': '#b07c4a'}
+    img = canvas16()
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
+def lamp_tile():
+    art = [
+        '................',
+        '.....LLLL.......',
+        '....LllllL......',
+        '....LllllL......',
+        '.....LLLL.......',
+        '......WW........',
+        '......Ww........',
+        '......Ww........',
+        '......Ww........',
+        '.....WWWW.......',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+    ]
+    pal = {'L': '#8a6a2a', 'l': '#ffe08a', 'W': '#5b3c22', 'w': '#8a5c34'}
+    img = canvas16()
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
+def sign_tile():
+    art = [
+        '................',
+        '................',
+        '................',
+        '....WWWWWWWW....',
+        '...WwwwwwwwwW...',
+        '...WwWWWWWWwW...',
+        '...WwwwwwwwwW...',
+        '...WWWWWWWWWW...',
+        '.......WW.......',
+        '.......Ww.......',
+        '.......Ww.......',
+        '......WWWW......',
+        '................',
+        '................',
+        '................',
+        '................',
+    ]
+    pal = {'W': '#5b3c22', 'w': '#c39a6b'}
+    img = canvas16()
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
 def shop_tile():
     art = [
         '................',
@@ -449,6 +549,10 @@ TILE_LIST = [
     ('shop', shop_tile()),
     ('bin', bin_tile()),
     ('bed', bed_tile()),
+    ('well', well_tile()),
+    ('bench', bench_tile()),
+    ('lamp', lamp_tile()),
+    ('sign', sign_tile()),
 ]
 
 TILE_COLS = 8

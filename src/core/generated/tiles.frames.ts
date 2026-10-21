@@ -21,6 +21,10 @@ export const TILE = {
   shop: 14,
   bin: 15,
   bed: 16,
+  well: 17,
+  bench: 18,
+  lamp: 19,
+  sign: 20,
 } as const;
 
 export type TileName = keyof typeof TILE;

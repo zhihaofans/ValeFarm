@@ -3,6 +3,10 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
+## 0.8.0 — build 23
+
+- 简单丰富村庄地图：商店/NPC 东侧增加广场地砖、水井、长椅、路灯、木牌、花圃和第二栋小屋；木牌/水井可互动。
+
 ## 0.7.0 — build 22
 
 - 新增**林区**（大地图东侧）：12 棵固定树，站到树旁按互动砍树，每棵 3 下、每下 4 体力，倒后获得 2 木头。

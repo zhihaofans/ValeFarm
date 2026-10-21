@@ -9,7 +9,7 @@
  *  - 全部相对路径，子目录部署天然可用。
  */
 
-const BUILD = '22';
+const BUILD = '23';
 // CACHE_TAG 由 tools/postbuild.js 按构建产物内容哈希注入。
 // 为什么不能只靠 BUILD：BUILD 只在发版时变；若同一版本内多次构建（修 bug 但不升版本），
 // 缓存名不变 → cacheFirst 一直吐旧页面，用户在手机上看到的还是旧版（0.4.1 踩过）。
