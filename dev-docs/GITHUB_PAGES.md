@@ -47,7 +47,7 @@ CI 分三个 job：
 | job | 内容 | 是否卡发布 |
 |---|---|---|
 | `build` | 校验 tag ↔ `version.json`、`npm test`、`npm run build`、上传 `docs/` 作为 Pages artifact | **卡**（红就不部署） |
-| `e2e` | 并行重跑一次构建 + Playwright 端到端（`--retries=1`），失败时上传 `playwright-report` | **卡**（v0.9.2 起收回门禁，红就不部署） |
+| `e2e` | 并行重跑一次构建 + Playwright 端到端（`--retries=1`），失败时上传 `playwright-report`。**只在 tag / 手动触发时跑**（推 master 跳过，保持日常检查轻量） | **卡**（红就不部署） |
 | `deploy` | `actions/deploy-pages` 部署刚构建的 `docs/`；**只在 tag 或手动触发时跑** | — |
 
 推 `master` 也会触发这套流程（只跑 `build` + `e2e`，`deploy` 被 `if` 跳过），

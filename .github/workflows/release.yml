@@ -5,7 +5,9 @@
 #   · Pages 的发布源是「GitHub Actions」（不是分支 /docs），部署产物就是 build 出来的 docs/
 #   · CI 只校验版本，不 bump；tag 必须打在 master 的最新提交上
 #
-# 为什么 e2e 单独一个 job、且不阻塞 deploy：
+# job 划分：build（单测+构建+出产物）→ e2e（仅发布/手动触发）与 deploy（仅发布/手动触发）。
+# e2e 与 build 分开，是为了让推 master 的日常检查保持轻量（不跑 2 分钟的端到端）。
+# 为什么 e2e 单独一个 job：
 #   2026-10-23 实测 e2e 在 runner 上会偶发失败（单次通过过一次，之后又红），
 #   而它跑的是"已经构建好的产物 + 本地 preview"，不影响产物本身是否可用。
 #   所以把发布门禁定在「单测 + 构建」，e2e 作为并行质量信号：失败会让整个 run 标红（看得见），
@@ -103,9 +105,12 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # 质量信号：并行跑端到端，不阻塞部署（见文件头说明）
+  # 质量信号：端到端（发布前的门禁）
   e2e:
     needs: build
+    # 推 master 只做「单测 + 构建」的快速兜底（约 1 分钟）；e2e 只在发布（tag）或手动触发时跑，
+    # 避免每次发版都重复跑两遍 2 分钟的端到端。
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

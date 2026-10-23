@@ -3,6 +3,10 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
+## 未发布（0.9.3 待定）
+
+- **日常检查减负**：推 `master` 只跑「单测 + 构建」（约 1 分钟），端到端（`e2e`）只在打 tag 或手动触发时跑。此前每次发版会重复跑两遍约 2 分钟的 e2e，白白多占 4 分钟；发布门禁本身不变（tag 构建仍然是 单测 + 构建 + e2e 全绿才部署）。
+
 ## 0.9.2 — build 26
 
 - **e2e 收回发布门禁**：`deploy` 改为 `needs: [build, e2e]`，单测/构建/端到端任一红都不发布。0.9.1 期间为绕开测试抖动临时解耦，等待策略修好后连续三次全绿，现已收回。
