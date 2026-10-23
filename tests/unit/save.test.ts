@@ -9,7 +9,7 @@ import {
   deserialize, exportSave, importSave, normalizeWorld, serialize,
 } from '../../src/core/save';
 import { createWorld } from '../../src/core/world';
-import { FARM_W } from '../../src/core/config';
+import { FARM_W, SAVE_FMT } from '../../src/core/config';
 import { ORE_SPOTS } from '../../src/core/data';
 
 describe('存档 normalize', () => {
@@ -162,7 +162,7 @@ describe('存档 normalize', () => {
 
     // v2 档（有树、没矿脉）补满矿脉，矿石键仍按白名单放行
     const old = normalizeWorld({ fmt: 2, day: 3, inventory: { wood: 2, 'ore:copper': 1, 'ore:diamond': 9 } });
-    expect(old.fmt).toBe(3);
+    expect(old.fmt).toBe(SAVE_FMT);
     expect(old.ores.length).toBe(ORE_SPOTS.length);
     expect(old.ores.every((o) => o.hp === 3)).toBe(true);
     expect(old.inventory['ore:copper']).toBe(1);

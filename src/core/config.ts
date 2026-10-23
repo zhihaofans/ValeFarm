@@ -71,4 +71,4 @@ export const ORE_COPPER_PER_HIT = 1;
 export const ORE_IRON_BONUS = 1;
 
 /** 当前存档格式号：改 World 结构时 +1，并在 save.ts 的 migrateFrom 里加一档 */
-export const SAVE_FMT = 3;
+export const SAVE_FMT = 4;

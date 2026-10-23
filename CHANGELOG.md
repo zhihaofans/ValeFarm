@@ -3,6 +3,14 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
+## 未发布（0.9.4 待定）
+
+- **装饰系统（第一步：数据与存档层）**：新增 `DECORS` 表（6 件：木栅栏段 / 陶土花盆 / 野餐布 / 小邮箱 / 石灯笼 / 稻草人）、`core/decor.ts`（购买 / 摆放 / 收回 / 挡路判定）、`World.decor` 存档字段。
+  - `SAVE_FMT` 升到 **4**：新增 `World.decor` 与 `decor:<id>` 物品；v3 旧档回落空数组，脏档按 id 白名单 + 地图范围 + 不重复占格过滤。
+  - 摆放规则：地图内、**非农田**、单格不重复；收回永远允许；`blocks=false`（野餐布）可踩。
+  - 单测 94 → 103 条（新增 `decor.test.ts` 9 条，`save.test.ts` 的 fmt 断言改用常量）。
+  - **尚未完成**：美术帧与场景渲染/互动（第二步）、商店与物品栏 UI（第三步）。
+
 ## 0.9.3 — build 27
 
 - **日常检查减负**：推 `master` 只跑「单测 + 构建」（约 1 分钟），端到端（`e2e`）只在打 tag 或手动触发时跑。此前每次发版会重复跑两遍约 2 分钟的 e2e，白白多占 4 分钟；发布门禁本身不变（tag 构建仍然是 单测 + 构建 + e2e 全绿才部署）。

@@ -51,6 +51,7 @@ export function createWorld(): World {
     plots,
     trees: TREE_SPOTS.map(([x, y]) => ({ x, y, hp: TREE_HP })),
     ores: ORE_SPOTS.map(([x, y]) => ({ x, y, hp: ORE_HP })),
+    decor: [],
     inventory: { 'seed:radish': 6 },
     playerX: FARM_OX + 1,
     playerY: FARM_OY - 2,

@@ -61,8 +61,15 @@ export interface OreState {
   hp: number;
 }
 
+/** 摆放出来的装饰：id 必须是 DECORS 里的一个（白名单，读档时校验） */
+export interface PlacedDecor {
+  id: string;
+  x: number;
+  y: number;
+}
+
 export interface Inventory {
-  /** 键约定：`seed:<crop>` | `crop:<crop>:<quality>` | `tool:can2` | `tool:hoe2` | `tool:pickaxe` | `wood` | `ore:copper` | `ore:iron` */
+  /** 键约定：`seed:<crop>` | `crop:<crop>:<quality>` | `tool:can2` | `tool:hoe2` | `tool:pickaxe` | `wood` | `ore:copper` | `ore:iron` | `decor:<id>` */
   [itemId: string]: number;
 }
 
@@ -93,6 +100,8 @@ export interface World {
   trees: TreeState[];
   /** 林区矿脉状态（固定点位，hp=0 当天已挖空，次日恢复） */
   ores: OreState[];
+  /** 已摆放的装饰（玩家自由摆放，读档时按 DECORS 白名单 + 地图范围过滤） */
+  decor: PlacedDecor[];
   inventory: Inventory;
   playerX: number;
   playerY: number;

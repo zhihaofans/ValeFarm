@@ -162,12 +162,44 @@ export const RECIPES: RecipeDef[] = [
   },
 ];
 
+// ---------------------------------------------------------------- 装饰
+
+/**
+ * 可摆放的装饰。价格按"卖 1~4 次收成能买一件"来定，避免变成纯钱坑。
+ * `blocks` = 摆上去是否挡路（野餐布可以踩，稻草人挡路）；`tile` 是 tiles 图集里的帧名，
+ * 第 2 步生成美术时用（这里先存字符串，避免和生成的 TILE 常量互相牵制）。
+ */
+export interface DecorDef {
+  id: string;
+  name: string;
+  price: number;
+  blocks: boolean;
+  tile: string;
+}
+
+export const DECORS: DecorDef[] = [
+  { id: 'decor:flowerpot', name: '陶土花盆', price: 60, blocks: true, tile: 'ornament_pot' },
+  { id: 'decor:mailbox', name: '小邮箱', price: 90, blocks: true, tile: 'ornament_mailbox' },
+  { id: 'decor:fence', name: '木栅栏段', price: 40, blocks: true, tile: 'ornament_fence' },
+  { id: 'decor:rug', name: '野餐布', price: 70, blocks: false, tile: 'ornament_rug' },
+  { id: 'decor:stonelantern', name: '石灯笼', price: 150, blocks: true, tile: 'ornament_stonelantern' },
+  { id: 'decor:scarecrow', name: '稻草人', price: 220, blocks: true, tile: 'ornament_scarecrow' },
+];
+
+export const DECOR_IDS: string[] = DECORS.map((d) => d.id);
+
+export function decorDef(id: string): DecorDef | undefined {
+  return DECORS.find((d) => d.id === id);
+}
+
 /** 背包/制作台展示名 */
 export function itemName(id: string): string {
   if (id === 'wood') return '木头';
   if (id === 'tool:pickaxe') return '木镐子';
   if (id === 'tool:can2') return '铜洒水壶';
   if (id === 'tool:hoe2') return '铜锄头';
+  const dec = DECORS.find((d) => d.id === id);
+  if (dec) return dec.name;
   if (id === 'ore:copper') return '铜矿石';
   if (id === 'ore:iron') return '铁矿石';
   if (id.startsWith('seed:')) {

@@ -1,7 +1,7 @@
 // 经济：背包操作、商店买卖、工具升级。
 
 import {
-  CROPS, CROP_ORDER, ORE_IDS, ORE_SELL, QUALITY, RECIPES,
+  CROPS, CROP_ORDER, DECORS, ORE_IDS, ORE_SELL, QUALITY, RECIPES,
   dailySeedSpecial, itemName, sellPrice, TOOL_UPGRADES,
 } from './data';
 import type { CropId, Inventory, Quality, Season, World } from './types';
@@ -40,6 +40,16 @@ export function cropEntries(inv: Inventory): Array<{ crop: CropId; quality: Qual
       const n = countItem(inv, `crop:${c}:${q}`);
       if (n > 0) out.push({ crop: c, quality: q, n, unit: sellPrice(c, q) });
     }
+  }
+  return out;
+}
+
+/** 背包里拥有的装饰（按 DECORS 顺序，给商店/物品栏用） */
+export function decorEntries(inv: Inventory): Array<{ id: string; n: number }> {
+  const out: Array<{ id: string; n: number }> = [];
+  for (const d of DECORS) {
+    const n = countItem(inv, d.id);
+    if (n > 0) out.push({ id: d.id, n });
   }
   return out;
 }

@@ -5,9 +5,9 @@
 //   不写 `{ ...defaults, ...raw }` 这种展开 —— 脏数据会原样进内存。
 
 import { FARM_H, FARM_W, MAP_H, MAP_W, ORE_HP, SAVE_FMT as FMT_CURRENT, TREE_HP } from './config';
-import { NPCS, ORE_SPOTS, TREE_SPOTS } from './data';
+import { DECOR_IDS, NPCS, ORE_SPOTS, TREE_SPOTS } from './data';
 import { createWorld } from './world';
-import type { Facing, Inventory, OreState, Plot, Season, TreeState, Weather, World } from './types';
+import type { Facing, Inventory, OreState, PlacedDecor, Plot, Season, TreeState, Weather, World } from './types';
 
 // ---------------------------------------------------------------- 基础类型守卫
 
@@ -63,7 +63,7 @@ function normalizeInventory(raw: unknown): Inventory {
   if (!isObj(raw)) return inv;
   for (const k of Object.keys(raw)) {
     const n = int(raw[k], 0);
-    if (n > 0 && /^(seed:(radish|pea|corn|pumpkin|strawberry|sweetpotato)|crop:(radish|pea|corn|pumpkin|strawberry|sweetpotato):(norm|sil|gold)|tool:(can2|hoe2|pickaxe)|wood|ore:(copper|iron))$/.test(k)) {
+    if (n > 0 && /^(seed:(radish|pea|corn|pumpkin|strawberry|sweetpotato)|crop:(radish|pea|corn|pumpkin|strawberry|sweetpotato):(norm|sil|gold)|tool:(can2|hoe2|pickaxe)|wood|ore:(copper|iron)|decor:(flowerpot|mailbox|fence|rug|stonelantern|scarecrow))$/.test(k)) {
       inv[k] = n;
     }
   }
@@ -83,6 +83,29 @@ function normalizeNpcs(raw: unknown): World['npcs'] {
     };
   }
   return npcs;
+}
+
+/**
+ * 装饰：玩家自由摆放，没有固定点位 —— 所以按「白名单 id + 地图范围 + 不重复占用同一格」过滤。
+ * 脏档/后续删掉的装饰 id 会被静默丢弃，不会把碰撞铺到任意位置。
+ */
+function normalizeDecor(raw: unknown): PlacedDecor[] {
+  const out: PlacedDecor[] = [];
+  if (!Array.isArray(raw)) return out;
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!isObj(item)) continue;
+    const id = str(item.id, '');
+    if (!DECOR_IDS.includes(id)) continue;
+    const x = int(item.x, -1);
+    const y = int(item.y, -1);
+    if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) continue;
+    const key = `${x},${y}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ id, x, y });
+  }
+  return out;
 }
 
 /** 树木按固定点位重建：只认白名单里的点，避免脏档把碰撞铺到任意位置 */
@@ -127,6 +150,9 @@ function migrateFrom(raw: Obj, fmt: number): { data: Obj; fmt: number } {
   // v2 → v3：新增林区矿脉（含 ore:copper / ore:iron 两种矿石）。
   // 旧档没有 ores，normalizeOres() 会按固定点位补满；矿石键由 normalizeInventory 白名单放行。
   if (f < 3) f = 3;
+  // v3 → v4：新增可摆放装饰（World.decor）与 decor:<id> 物品。
+  // 旧档没有 decor，normalizeDecor() 会回落成空数组；背包键由 normalizeInventory 白名单放行。
+  if (f < 4) f = 4;
   return { data, fmt: f };
 }
 
@@ -171,6 +197,8 @@ export function normalizeWorld(raw: unknown): World {
     trees: o.trees === undefined ? base.trees : normalizeTrees(o.trees),
     // ores —— 必须登记：矿脉固定点位 + hp（挖空当天 hp=0，次日 refreshOres 回满）
     ores: o.ores === undefined ? base.ores : normalizeOres(o.ores),
+    // decor —— 必须登记：玩家自由摆放的装饰，按 id 白名单 + 范围 + 不重复占格过滤
+    decor: o.decor === undefined ? base.decor : normalizeDecor(o.decor),
     // inventory —— 必须登记（老档/新档都没有 inventory 时回落初始背包）
     inventory: o.inventory === undefined ? base.inventory : normalizeInventory(o.inventory),
     // playerX / playerY —— 必须登记；夹到地图内，避免旧档 y=-1 读档后卡在空气墙
