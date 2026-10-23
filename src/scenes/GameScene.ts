@@ -8,13 +8,14 @@ import {
   MS_PER_GAME_MINUTE, FORCE_SLEEP_MINUTE,
   SHOP_OPEN_MINUTE, SHOP_CLOSE_MINUTE,
 } from '../core/config';
-import { CROP_ORDER, DIR_ROW, NPCS } from '../core/data';
+import { CROP_ORDER, DECORS, DIR_ROW, NPCS } from '../core/data';
 import { gameZoom } from '../layout';
 import {
   doClear, doHarvest, doHoe, doPlant, doWater,
 } from '../core/actions';
 import { chopTree, treeAt } from '../core/forest';
 import { mineOre, oreAt } from '../core/mine';
+import { decorAt, decorBlocks, isDecorId, placeDecor, removeDecor } from '../core/decor';
 import { endDay } from '../core/daycycle';
 import { seasonSeeds } from '../core/economy';
 import { serialize } from '../core/save';
@@ -24,7 +25,7 @@ import { TILE } from '../core/generated/tiles.frames';
 import {
   farmCoord, inMap, plotAt, seasonOf, dayOfSeason,
 } from '../core/world';
-import type { CropId, Facing, OreState, TreeState, World } from '../core/types';
+import type { CropId, Facing, OreState, PlacedDecor, TreeState, World } from '../core/types';
 import type { UIScene } from './UIScene';
 
 const SPEED = 110; // px/s
@@ -39,6 +40,7 @@ export class GameScene extends Phaser.Scene {
   private plotSprites: Phaser.GameObjects.Image[] = [];
   private treeSprites = new Map<string, Phaser.GameObjects.Image>();
   private oreSprites = new Map<string, Phaser.GameObjects.Image>();
+  private decorSprites = new Map<string, Phaser.GameObjects.Image>();
   private activeCrops = new Map<number, Phaser.GameObjects.Sprite>();
   private cropFree: Phaser.GameObjects.Sprite[] = [];
   private player!: Phaser.GameObjects.Sprite;
@@ -120,6 +122,8 @@ export class GameScene extends Phaser.Scene {
     if (treeAt(this.world, tx, ty)) return true;
     // 林区矿脉（挖空当天不再阻挡，次日恢复）
     if (oreAt(this.world, tx, ty)) return true;
+    // 已摆放的装饰（野餐布 blocks=false，可以踩过去）
+    if (decorBlocks(this.world, tx, ty)) return true;
     // 农田内的障碍
     const fc = farmCoord(tx, ty);
     if (fc) {
@@ -160,6 +164,37 @@ export class GameScene extends Phaser.Scene {
   /** 清晨刷矿：所有矿脉重新露头 */
   private refreshAllOres(): void {
     for (const ore of this.world.ores) this.refreshOre(ore);
+  }
+
+  // ------------------------------------------------------------- 装饰
+
+  /** DECORS.tile 名字 → tiles 图集帧号；查不到退回杂草帧，绝不抛错 */
+  private decorFrame(id: string): number {
+    const key = DECORS.find((d) => d.id === id)?.tile ?? '';
+    return (TILE as Record<string, number>)[key] ?? TILE.weed;
+  }
+
+  /** 挡路的装饰压角色下面一层（6）；野餐布这类贴地（5） */
+  private decorDepth(id: string): number {
+    return (DECORS.find((d) => d.id === id)?.blocks ?? true) ? 6 : 5;
+  }
+
+  private drawDecor(d: PlacedDecor): void {
+    const key = `${d.x},${d.y}`;
+    this.decorSprites.get(key)?.destroy();
+    const img = this.add.image(d.x * TILE_PX + 16, d.y * TILE_PX + 16, 'tiles', this.decorFrame(d.id))
+      .setDepth(this.decorDepth(d.id));
+    this.decorSprites.set(key, img);
+  }
+
+  private destroyDecorSprite(x: number, y: number): void {
+    const key = `${x},${y}`;
+    this.decorSprites.get(key)?.destroy();
+    this.decorSprites.delete(key);
+  }
+
+  private refreshAllDecor(): void {
+    for (const d of this.world.decor) this.drawDecor(d);
   }
 
   private buildMap(): void {
@@ -224,6 +259,8 @@ export class GameScene extends Phaser.Scene {
     for (const tree of this.world.trees) this.drawTree(tree);
     // 林区矿脉
     for (const ore of this.world.ores) this.drawOre(ore);
+    // 已摆放的装饰
+    this.refreshAllDecor();
 
     // 农田地块（动态帧：wild / tilled_dry / tilled_wet）
     for (let i = 0; i < FARM_W * FARM_H; i++) {
@@ -577,6 +614,34 @@ export class GameScene extends Phaser.Scene {
     if (t.x === 21 && t.y === 5) {
       (this.scene.get('ui') as UIScene).toast('井水清凉，倒映着今天的云。');
       SFX.ui();
+      return;
+    }
+
+    // 已摆放的装饰：再按一次互动 = 收回（回到背包，随时可以改主意）
+    if (decorAt(this.world, t.x, t.y)) {
+      const r = removeDecor(this.world, t.x, t.y);
+      if (r.ok) {
+        SFX.ui();
+        this.destroyDecorSprite(t.x, t.y);
+      }
+      this.afterAction(r.text, r.ok, 0);
+      return;
+    }
+
+    // 手上选中了装饰：互动 = 摆到面朝格
+    const selItem = (this.scene.get('ui') as UIScene).currentQuickItemId();
+    if (selItem && isDecorId(selItem)) {
+      if (this.isBlockedTile(t.x, t.y)) {
+        (this.scene.get('ui') as UIScene).toast('这里放不下');
+        SFX.fail();
+        return;
+      }
+      const r = placeDecor(this.world, selItem, t.x, t.y);
+      if (r.ok) {
+        SFX.plant();
+        this.drawDecor({ id: selItem, x: t.x, y: t.y });
+      }
+      this.afterAction(r.text, r.ok, 0);
       return;
     }
 

@@ -79,6 +79,7 @@ UIScene 相机必须同时满足：尺寸 = 整块画布、`zoom = 1`、`origin 
 | 调数值（价格、体力、生长天数） | [config.ts](src/core/config.ts)、[data.ts](src/core/data.ts) |
 | 加作物 / 改作物 | [data.ts](src/core/data.ts) 的 `CROPS` + [ui.frames.ts](src/core/generated/ui.frames.ts) + [gen_assets.py](tools/gen_assets.py) |
 | 加 NPC / 改对话 | [data.ts](src/core/data.ts)、[npc.ts](src/core/npc.ts) |
+| 加装饰 / 改价格 | [data.ts](src/core/data.ts) 的 `DECORS` + [gen_assets.py](tools/gen_assets.py) 的 `ornament_*_tile()` + [decor.ts](src/core/decor.ts) |
 | 改矿脉点位 / 挖矿产出 | [data.ts](src/core/data.ts) 的 `ORE_SPOTS`/`ORE_SELL`、[mine.ts](src/core/mine.ts)、[config.ts](src/core/config.ts) 的 `ORE_*` |
 | 改 UI 布局 / 面板 | [UIScene.ts](src/scenes/UIScene.ts)，尺寸统一走 [widgets.ts](src/ui/widgets.ts) |
 | 改屏幕适配 | [layout.ts](src/layout.ts) |

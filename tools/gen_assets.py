@@ -556,6 +556,162 @@ def ore_tile():
     return img
 
 
+def ornament_pot_tile():
+    """陶土花盆：小盆栽，摆在自己院子里的低矮装饰。"""
+    art = [
+        '................',
+        '................',
+        '.......g........',
+        '......gGg.......',
+        '.....gGgGg......',
+        '......gGg.......',
+        '....PPPPPPP.....',
+        '....PpppppP.....',
+        '.....PpppP......',
+        '.....PpppP......',
+        '......PpP.......',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+    ]
+    pal = {'P': '#8a4a2e', 'p': '#b9694a', 'g': '#65b046', 'G': '#2f6b2a'}
+    img = canvas16()
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
+def ornament_mailbox_tile():
+    """小邮箱：挂小旗的木箱，纯装饰。"""
+    art = [
+        '................',
+        '.......BBBB.....',
+        '......BbbbbB....',
+        '......BbbbbB....',
+        '......BbbbbB....',
+        '.......BBBB.....',
+        '......B.FF......',
+        '.......WW.......',
+        '.......WW.......',
+        '.......WW.......',
+        '.......WW.......',
+        '......WWWW......',
+        '................',
+        '................',
+        '................',
+        '................',
+    ]
+    pal = {'B': '#4a5a70', 'b': '#7d93b0', 'F': '#c94f3d', 'W': '#6b482a'}
+    img = canvas16()
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
+def ornament_fence_tile():
+    """木栅栏段：比围栏更浅的木色，可自由拼成围合。"""
+    art = [
+        '................',
+        '................',
+        '................',
+        '................',
+        '.WW..........WW.',
+        '.WwWWWWWWWWWWwW.',
+        '.WwWWWWWWWWWWwW.',
+        '.Ww..........wW.',
+        '.Ww..........wW.',
+        '.Ww..........wW.',
+        '.WWW........WWW.',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+    ]
+    pal = {'W': '#8a6a45', 'w': '#b58f66'}
+    img = canvas16()
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
+def ornament_rug_tile():
+    """野餐布：铺在地上的格纹布，不挡路（blocks=false）。"""
+    art = [
+        '................',
+        '................',
+        '..RRRRRRRRRRRR..',
+        '..RrrrrrrrrrrR..',
+        '..RrrRRrrRRrrR..',
+        '..RrrRRrrRRrrR..',
+        '..RrrrrrrrrrrR..',
+        '..RrrRRrrRRrrR..',
+        '..RrrRRrrRRrrR..',
+        '..RrrrrrrrrrrR..',
+        '..RRRRRRRRRRRR..',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+    ]
+    pal = {'R': '#a4453a', 'r': '#e0c9a6'}
+    img = canvas16()
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
+def ornament_stonelantern_tile():
+    """石灯笼：石座 + 暖光，夜里也好看。"""
+    art = [
+        '................',
+        '......dddd......',
+        '.....dSSSSd.....',
+        '.....dSssSd.....',
+        '.....dSssSd.....',
+        '......dSSd......',
+        '.....dSSSSd.....',
+        '....dSSSSSSd....',
+        '.....dSSSSd.....',
+        '......dSSd......',
+        '.....dSSSSd.....',
+        '....dSSSSSSd....',
+        '.....dddddd.....',
+        '................',
+        '................',
+        '................',
+    ]
+    pal = {'d': '#4a4a52', 'S': '#9d9d9d', 's': '#f2d98a'}
+    img = canvas16()
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
+def ornament_scarecrow_tile():
+    """稻草人：草帽 + 横杆，农田边的经典装饰。"""
+    art = [
+        '................',
+        '.....HHHHHH.....',
+        '....HhhhhhhH....',
+        '.....HssssH.....',
+        '......ssss......',
+        '.......ss.......',
+        '...WWWWssWWWW...',
+        '...W..ss..W.....',
+        '......ssss......',
+        '......ssss......',
+        '......ssss......',
+        '.....WssssW.....',
+        '.....W....W.....',
+        '................',
+        '................',
+        '................',
+    ]
+    pal = {'H': '#c9a06b', 'h': '#e0c08a', 's': '#d9c07a', 'W': '#6b482a'}
+    img = canvas16()
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
 # 顺序即帧索引，写进 tiles.frames.ts（唯一数据源，改这里要重跑脚本）
 TILE_LIST = [    ('grass_a', grass_tile(1, False)),
     ('grass_b', grass_tile(2, True)),
@@ -579,6 +735,12 @@ TILE_LIST = [    ('grass_a', grass_tile(1, False)),
     ('lamp', lamp_tile()),
     ('sign', sign_tile()),
     ('ore', ore_tile()),
+    ('ornament_pot', ornament_pot_tile()),
+    ('ornament_mailbox', ornament_mailbox_tile()),
+    ('ornament_fence', ornament_fence_tile()),
+    ('ornament_rug', ornament_rug_tile()),
+    ('ornament_stonelantern', ornament_stonelantern_tile()),
+    ('ornament_scarecrow', ornament_scarecrow_tile()),
 ]
 
 TILE_COLS = 8

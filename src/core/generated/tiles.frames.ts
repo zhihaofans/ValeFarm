@@ -26,6 +26,12 @@ export const TILE = {
   lamp: 19,
   sign: 20,
   ore: 21,
+  ornament_pot: 22,
+  ornament_mailbox: 23,
+  ornament_fence: 24,
+  ornament_rug: 25,
+  ornament_stonelantern: 26,
+  ornament_scarecrow: 27,
 } as const;
 
 export type TileName = keyof typeof TILE;

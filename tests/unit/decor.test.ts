@@ -13,6 +13,7 @@ import {
 import { createWorld } from '../../src/core/world';
 import { normalizeWorld, serialize, deserialize } from '../../src/core/save';
 import { SAVE_FMT } from '../../src/core/config';
+import { TILE } from '../../src/core/generated/tiles.frames';
 import { FARM_OX, FARM_OY, MAP_W } from '../../src/core/config';
 
 const POT = 'decor:flowerpot';
@@ -91,6 +92,15 @@ describe('摆放与收回', () => {
     expect(decorBlocks(w, 14, 2)).toBe(true);
     expect(decorBlocks(w, 15, 2)).toBe(false);
     expect(decorBlocks(w, 16, 2)).toBe(false);                         // 空地
+  });
+});
+
+describe('装饰美术帧', () => {
+  it('每件装饰的 tile 名都能在生成的图集里找到（防手写错帧名）', () => {
+    for (const d of DECORS) {
+      const frame = (TILE as Record<string, number>)[d.tile];
+      expect(typeof frame, `图集缺少帧 ${d.tile}`).toBe('number');
+    }
   });
 });
 
