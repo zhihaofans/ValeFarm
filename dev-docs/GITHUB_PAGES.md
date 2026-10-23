@@ -42,8 +42,17 @@ git tag v0.9.0        # 必须与 public/version.json 的 ver 一致
 git push origin v0.9.0
 ```
 
-CI 会：校验 tag 与 `public/version.json` 一致 → `npm test` → `npm run build` → `npm run test:e2e`
-→ 上传 `docs/` 作为 Pages artifact → 部署。**任何一步失败都不部署**，线上保持上一次全绿的产物。
+CI 分三个 job：
+
+| job | 内容 | 是否卡发布 |
+|---|---|---|
+| `build` | 校验 tag ↔ `version.json`、`npm test`、`npm run build`、上传 `docs/` 作为 Pages artifact | **卡**（红就不部署） |
+| `e2e` | 并行重跑一次构建 + Playwright 端到端，失败时上传 `playwright-report` | 不卡（红只会让整条 run 标红） |
+| `deploy` | `actions/deploy-pages` 部署刚构建的 `docs/` | — |
+
+> 为什么 e2e 不卡发布：2026-10-23 实测 e2e 在 runner 上会偶发失败（同代码一次绿一次红），
+> 而它跑的是"已经构建好的产物 + 本地 preview"，失败不影响产物可用性。等 e2e 稳定后，
+> 把 `deploy` 的 `needs` 从 `[build]` 改成 `[build, e2e]` 就能重新收回门禁。
 
 产物里的缓存指纹（`CACHE_TAG`）由构建脚本按内容注入，变了以后 Service Worker 会清旧缓存并提示用户刷新。
 
