@@ -12,7 +12,11 @@
 - **存档 `SAVE_FMT` 升到 3**：新增 `World.ores` 与 `ore:copper`/`ore:iron` 两种物品；v2 旧档按固定点位补满矿脉，矿石键走白名单校验。
 - **美术**：`tools/gen_assets.py` 新增 `ore` 地块（追加在图集末尾，`TILE.ore = 21`，不打乱既有帧号）。
 - 单测 84 → 94 条（新增 `mine.test.ts`，`save.test.ts` 补矿脉/矿石往返与 v2 迁移）。
-- **发布改成 Actions 部署**：新增 `.github/workflows/release.yml` —— 打 `v*` tag（或手动 `workflow_dispatch`）时在 GitHub 上跑 版本校验 → 单测 → build → e2e，全绿后用 `actions/deploy-pages` 部署；任何一步失败都不发布。首次全链路已跑通（94 条单测 / 38 条 e2e / 部署成功）。
+- **发布改成 Actions 部署**：新增 `.github/workflows/release.yml` —— 打 `v*` tag（或手动 `workflow_dispatch`）时在 GitHub 上跑 版本校验 → 单测 → build，再用 `actions/deploy-pages` 部署；**单测或构建失败就不部署**（e2e 的定位见下条）。首次全链路已跑通（94 条单测 / 38 条 e2e / 部署成功）。
+- **CI 修补（`v0.9.0` tag 之后跟进，不影响线上产物）**：
+  - tag 发布曾卡在"确认 tag 在 master 顶端"这一步：tag 检出是 detached HEAD，`git fetch origin master` 只更新 `FETCH_HEAD`、不建 `origin/master`，改用 `git ls-remote` 取 master 尖端。
+  - e2e 曾红在两条用例上（`modal` 的 `activePanel` 为 null、`safe-area` 的 `tipObj` 为 null）：它们固定等 1.2s/900ms 就假设晨报面板已弹出。改为 `waitForFunction` 等真实条件，**断言未改**；`orientation` 里同类隐患一并收掉。
+  - `e2e` 拆成并行 job，不再拦发布（失败仍会让整条 run 标红，并上传 `playwright-report`）；推 `master` 也会跑 单测+构建+e2e 做检查，但 `deploy` 只在 tag / 手动触发时执行。
 - **master 只留源码**：构建产物 `docs/` 加入 `.gitignore`，改为纯本地产物（`preview` / `test:e2e` / `package` 仍用它）。Pages 的 Source 需改为 `GitHub Actions`，详见 [GITHUB_PAGES.md](dev-docs/GITHUB_PAGES.md)。
 
 ## 0.8.0 — build 23
