@@ -7,6 +7,20 @@
 // 所以用 window.__valeSafeInsets 注入一组真机数值来跑这条路径。
 import { expect, test, type Page } from '@playwright/test';
 
+/**
+ * 等晨报面板真的弹出来，别用固定 waitForTimeout：
+ * 面板是「资源加载完 → delayedCall(100) → onGameReady → showDayReport」之后才出现的，
+ * CI runner 慢一点就会在 1.2s 时还拿不到 activePanel（2026-10-23 CI 真实红过两条，都是这个原因）。
+ * 等条件而不是等时间，断言不变；面板真的不出来时这里会超时失败，不会被掩盖。
+ */
+async function waitDayReportOpen(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const ui = (window as unknown as any).__vale?.scene?.scene?.get('ui');
+    return !!(ui && ui.panelOpen && ui.activePanel);
+  }, null, { timeout: 20000 });
+}
+
+
 /** 注入安全区并等待 UI 重建完（UIScene 每帧检测到变化会重建 HUD / 按钮） */
 async function injectSafe(page: Page, top: number, bottom: number, left = 0, right = 0): Promise<void> {
   await page.evaluate(([t, b, l, r]) => {
@@ -138,7 +152,7 @@ test('面板开着时点 ☰：提示以屏幕中央对话框出现且可关闭'
   const page = await ctx.newPage();
   await page.goto('/');
   await page.waitForFunction(() => !!(window as unknown as any).__vale, null, { timeout: 30000 });
-  await page.waitForTimeout(900);
+  await waitDayReportOpen(page);
 
   // 晨报还开着，直接再点一次 ☰ → 应弹出"面板已经打开啦"的对话框
   await page.evaluate(() => (window as unknown as any).__vale.scene.scene.get('ui').openSystem());

@@ -1,12 +1,28 @@
 // 回归：面板触控（用户实测反馈过：✕ 偶尔点不动、面板开着时背景摇杆还能滑）
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+/**
+ * 等晨报面板真的弹出来，别用固定 waitForTimeout：
+ * 面板是「资源加载完 → delayedCall(100) → onGameReady → showDayReport」之后才出现的，
+ * CI runner 慢一点就会在 1.2s 时还拿不到 activePanel，于是 u.activePanel.root 直接 TypeError
+ * （2026-10-23 CI 上真实红过：modal 与 safe-area 各一条，都是这个原因）。
+ * 等条件而不是等时间，断言不变；面板真的不出来时这里会超时失败，不会被掩盖。
+ */
+async function waitDayReportOpen(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const ui = (window as unknown as any).__vale?.scene?.scene?.get('ui');
+    return !!(ui && ui.panelOpen && ui.activePanel);
+  }, null, { timeout: 20000 });
+}
+
 
 test.use({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 3 });
 
 test('面板外透明点击区：不压暗 HUD，左上角点外也能关闭', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => !!(window as unknown as any).__vale, null, { timeout: 30000 });
-  await page.waitForTimeout(1200);
+  await waitDayReportOpen(page);
 
   const m = await page.evaluate(() => {
     const u = (window as unknown as any).__vale.scene.scene.get('ui');
@@ -47,7 +63,7 @@ test('面板外透明点击区：不压暗 HUD，左上角点外也能关闭', a
 test('面板：✕ 可点、按钮可点、背景摇杆被锁', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => !!(window as unknown as any).__vale, null, { timeout: 30000 });
-  await page.waitForTimeout(1200);
+  await waitDayReportOpen(page);
 
   // 坐标一律用「CSS 像素」直接给：画布现在铺满视口，1 CSS px = 1 UI 单位
   const box = (await page.locator('#game canvas').boundingBox())!;

@@ -3,7 +3,21 @@
 //   ② 点「横屏全屏」要在手势里真的去请求全屏 + 锁横屏（API 是否存在无所谓，调用要发生）
 //   ③ 任何一步失败都不能让游戏挂掉、也不能把画布压变形
 //   ④ 按能力探测给按钮降级：iOS 浏览器 / 已装 PWA 都不能摆点不动的按钮
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+/**
+ * 等晨报面板真的弹出来，别用固定 waitForTimeout：
+ * 面板是「资源加载完 → delayedCall(100) → onGameReady → showDayReport」之后才出现的，
+ * CI runner 慢一点就会在 1.2s 时还拿不到 activePanel（2026-10-23 CI 真实红过两条，都是这个原因）。
+ * 等条件而不是等时间，断言不变；面板真的不出来时这里会超时失败，不会被掩盖。
+ */
+async function waitDayReportOpen(page: Page): Promise<void> {
+  await page.waitForFunction(() => {
+    const ui = (window as unknown as any).__vale?.scene?.scene?.get('ui');
+    return !!(ui && ui.panelOpen && ui.activePanel);
+  }, null, { timeout: 20000 });
+}
+
 
 /** 卡片之外的空白处：从卡片真实底边往下 20px 取一个点，卡片改高也不用改测试 */
 async function pointBelowCard(page: import('@playwright/test').Page): Promise<{ x: number; y: number }> {
@@ -148,7 +162,7 @@ test.describe('横屏（正常游玩）', () => {
 
     await page.goto('/');
     await page.waitForFunction(() => !!(window as any).__vale, null, { timeout: 30000 });
-    await page.waitForTimeout(800);
+    await waitDayReportOpen(page);
 
     await expect(page.locator('#rotate-tip')).toBeHidden();
 

@@ -16,7 +16,11 @@ on:
   push:
     tags:
       - 'v*'
-  # 手动触发：验证链路时用，不必先打 tag（也会跳过版本一致性校验）
+    # 推 master 只跑「单测 + 构建 + e2e」这套检查，不部署（部署见 deploy 的 if）。
+    # 这样每次改动都有一条自动验证，不用靠打 tag 才发现 e2e 红了。
+    branches:
+      - master
+  # 手动触发：验证链路/重新部署时用，不必先打 tag（跳过版本一致性校验）
   workflow_dispatch:
 
 permissions:
@@ -141,6 +145,8 @@ jobs:
 
   deploy:
     needs: build
+    # 只有 tag（发布）或手动触发才部署；推 master 仅做检查，不动线上
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
