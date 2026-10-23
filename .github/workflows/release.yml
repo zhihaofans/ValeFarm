@@ -62,9 +62,19 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           set -eu
-          git fetch --no-tags origin master
-          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/master)" ]; then
-            echo "::error::tag 打在 $(git rev-parse --short HEAD)，但 master 是 $(git rev-parse --short origin/master)。请把 tag 打在 master 上。"
+          # 注意：tag 检出是 detached HEAD，`git fetch origin master` 只会更新 FETCH_HEAD，
+          # 不会创建 origin/master 引用（踩过：这里报 ambiguous argument 直接把发布干红）。
+          # 所以直接问远端 master 的 sha，不依赖本地远程跟踪引用的簿记。
+          MASTER_SHA="$(git ls-remote origin refs/heads/master | cut -f1)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          echo "远端 master=$MASTER_SHA"
+          echo "当前 HEAD  =$HEAD_SHA"
+          if [ -z "$MASTER_SHA" ]; then
+            echo "::error::取不到远端 master 的 sha（网络或权限问题）"
+            exit 1
+          fi
+          if [ "$HEAD_SHA" != "$MASTER_SHA" ]; then
+            echo "::error::tag 打在 $(git rev-parse --short HEAD)，但 master 顶端是 $(echo "$MASTER_SHA" | cut -c1-7)。请把 tag 打在 master 上。"
             exit 1
           fi
 
