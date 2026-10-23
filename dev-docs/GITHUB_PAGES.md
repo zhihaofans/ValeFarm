@@ -48,7 +48,10 @@ CI 分三个 job：
 |---|---|---|
 | `build` | 校验 tag ↔ `version.json`、`npm test`、`npm run build`、上传 `docs/` 作为 Pages artifact | **卡**（红就不部署） |
 | `e2e` | 并行重跑一次构建 + Playwright 端到端，失败时上传 `playwright-report` | 不卡（红只会让整条 run 标红） |
-| `deploy` | `actions/deploy-pages` 部署刚构建的 `docs/` | — |
+| `deploy` | `actions/deploy-pages` 部署刚构建的 `docs/`；**只在 tag 或手动触发时跑** | — |
+
+推 `master` 也会触发这套流程（只跑 `build` + `e2e`，`deploy` 被 `if` 跳过），
+所以每次改动都有一条自动验证，不用等打 tag 才发现 e2e 红了。
 
 > 为什么 e2e 不卡发布：2026-10-23 实测 e2e 在 runner 上会偶发失败（同代码一次绿一次红），
 > 而它跑的是"已经构建好的产物 + 本地 preview"，失败不影响产物可用性。等 e2e 稳定后，
