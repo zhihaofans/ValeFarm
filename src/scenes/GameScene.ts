@@ -562,6 +562,18 @@ export class GameScene extends Phaser.Scene {
       SFX.ui();
       return;
     }
+    // 村庄第二栋小屋 (23,1)：实心装饰，给它一句台词，别让玩家按了毫无反应
+    if (t.x === 23 && t.y === 1) {
+      (this.scene.get('ui') as UIScene).toast('窗帘拉着，屋里没亮灯 —— 好像还没人搬进来。');
+      SFX.ui();
+      return;
+    }
+    if (t.x === 23 && t.y === 1) {
+      // 第二栋小屋：实心装饰，但长得像能进 —— 给一句反馈，别让玩家以为点了没反应
+      (this.scene.get('ui') as UIScene).toast('窗帘拉着，屋里没亮灯 —— 好像暂时没人住。');
+      SFX.ui();
+      return;
+    }
     if (t.x === 21 && t.y === 5) {
       (this.scene.get('ui') as UIScene).toast('井水清凉，倒映着今天的云。');
       SFX.ui();
