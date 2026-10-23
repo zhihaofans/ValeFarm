@@ -3,7 +3,7 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
-## 未发布（0.9.4 待定）
+## 0.9.4 — build 28
 
 - **装饰系统（第一步：数据与存档层）**：新增 `DECORS` 表（6 件：木栅栏段 / 陶土花盆 / 野餐布 / 小邮箱 / 石灯笼 / 稻草人）、`core/decor.ts`（购买 / 摆放 / 收回 / 挡路判定）、`World.decor` 存档字段。
   - `SAVE_FMT` 升到 **4**：新增 `World.decor` 与 `decor:<id>` 物品；v3 旧档回落空数组，脏档按 id 白名单 + 地图范围 + 不重复占格过滤。
