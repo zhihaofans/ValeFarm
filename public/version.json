@@ -1,5 +1,5 @@
 {
-  "ver": "0.9.1",
-  "build": "25",
-  "note": "CI/e2e 修补：tag 发布校验改用 ls-remote、e2e 等晨报面板条件、发布门禁重新划分"
+  "ver": "0.9.2",
+  "build": "26",
+  "note": "发布门禁收回 + Actions v5 + 去掉 .nojekyll + 诊断显示源码提交"
 }

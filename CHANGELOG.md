@@ -3,12 +3,12 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
-## 未发布（0.9.2 待定）
+## 0.9.2 — build 26
 
 - **e2e 收回发布门禁**：`deploy` 改为 `needs: [build, e2e]`，单测/构建/端到端任一红都不发布。0.9.1 期间为绕开测试抖动临时解耦，等待策略修好后连续三次全绿，现已收回。
 - **CI 升级**：`actions/checkout`、`setup-node`、`upload-artifact` 从 v4 升到 **v5**，消掉每次 run 刷屏的 Node.js 20 弃用警告（`upload-pages-artifact` / `deploy-pages` 暂无 v5）。
 - **移除 `public/.nojekyll`**：改由 `actions/deploy-pages` 部署后不再走 Jekyll，该文件已无作用；`tools/package.mjs` 里「缺 `.nojekyll` 就拒绝打包」的校验一并删除。
-- **环境诊断显示源码提交**：构建时注入 `__GIT_SHA__` / `__GIT_REF__`（CI 优先读 `GITHUB_SHA` / `GITHUB_REF_NAME`，本地回退到 `git rev-parse`，有未提交改动时标 `-dirty`），游戏内 ☰ → 系统 → 环境诊断新增「源码提交」一行。真机反馈问题时可以直接对上「这个 bug 是哪个提交编出来的」。
+- **环境诊断显示源码提交**：构建时注入 `__GIT_SHA__` / `__GIT_REF__`（CI 优先读 `GITHUB_SHA` / `GITHUB_REF_NAME`，本地回退 `git rev-parse`，有未提交改动标 `-dirty`；取不到写 `unknown`，绝不让构建失败）。诊断面板把它**接在「版本 / 构建」后面**，格式 `0.9.2 / build 26 · 8bbaebc · master`；tag 构建时 ref 与版本号重复会自动省略。真机反馈问题时一行就能对上「哪个提交编的」。
 - **`package.json` 版本随发版同步**：`tools/stamp.js` 现在同时写 `package.json` 与 `package-lock.json` 的 `version`，消掉 CI 日志里 `vale-farm@0.1.0 build` 这类与实际版本不符的噪音（展示版本仍以 `public/version.json` 为唯一数据源）。
 
 ## 0.9.1 — build 25
