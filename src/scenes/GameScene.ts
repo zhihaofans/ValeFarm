@@ -14,6 +14,7 @@ import {
   doClear, doHarvest, doHoe, doPlant, doWater,
 } from '../core/actions';
 import { chopTree, treeAt } from '../core/forest';
+import { mineOre, oreAt } from '../core/mine';
 import { endDay } from '../core/daycycle';
 import { seasonSeeds } from '../core/economy';
 import { serialize } from '../core/save';
@@ -23,7 +24,7 @@ import { TILE } from '../core/generated/tiles.frames';
 import {
   farmCoord, inMap, plotAt, seasonOf, dayOfSeason,
 } from '../core/world';
-import type { CropId, Facing, TreeState, World } from '../core/types';
+import type { CropId, Facing, OreState, TreeState, World } from '../core/types';
 import type { UIScene } from './UIScene';
 
 const SPEED = 110; // px/s
@@ -37,6 +38,7 @@ export class GameScene extends Phaser.Scene {
   private groundSprites: Phaser.GameObjects.Image[] = [];
   private plotSprites: Phaser.GameObjects.Image[] = [];
   private treeSprites = new Map<string, Phaser.GameObjects.Image>();
+  private oreSprites = new Map<string, Phaser.GameObjects.Image>();
   private activeCrops = new Map<number, Phaser.GameObjects.Sprite>();
   private cropFree: Phaser.GameObjects.Sprite[] = [];
   private player!: Phaser.GameObjects.Sprite;
@@ -116,6 +118,8 @@ export class GameScene extends Phaser.Scene {
     if (ty === 15 && tx >= 3 && tx <= 14) return true;
     // 林区树木（hp=0 已砍倒，不再阻挡）
     if (treeAt(this.world, tx, ty)) return true;
+    // 林区矿脉（挖空当天不再阻挡，次日恢复）
+    if (oreAt(this.world, tx, ty)) return true;
     // 农田内的障碍
     const fc = farmCoord(tx, ty);
     if (fc) {
@@ -140,6 +144,22 @@ export class GameScene extends Phaser.Scene {
 
   private refreshTree(tree: TreeState): void {
     this.treeSprites.get(`${tree.x},${tree.y}`)?.setVisible(tree.hp > 0);
+  }
+
+  private drawOre(ore: OreState): void {
+    const img = this.add.image(ore.x * TILE_PX + 16, ore.y * TILE_PX + 16, 'tiles', TILE.ore)
+      .setDepth(8);
+    img.setVisible(ore.hp > 0);
+    this.oreSprites.set(`${ore.x},${ore.y}`, img);
+  }
+
+  private refreshOre(ore: OreState): void {
+    this.oreSprites.get(`${ore.x},${ore.y}`)?.setVisible(ore.hp > 0);
+  }
+
+  /** 清晨刷矿：所有矿脉重新露头 */
+  private refreshAllOres(): void {
+    for (const ore of this.world.ores) this.refreshOre(ore);
   }
 
   private buildMap(): void {
@@ -202,6 +222,8 @@ export class GameScene extends Phaser.Scene {
 
     // 林区树木
     for (const tree of this.world.trees) this.drawTree(tree);
+    // 林区矿脉
+    for (const ore of this.world.ores) this.drawOre(ore);
 
     // 农田地块（动态帧：wild / tilled_dry / tilled_wet）
     for (let i = 0; i < FARM_W * FARM_H; i++) {
@@ -546,6 +568,16 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // 林区矿脉（要木镐；挖空当天不再有产出）
+    const ore = oreAt(this.world, t.x, t.y);
+    if (ore) {
+      const r = mineOre(this.world, t.x, t.y);
+      if (r.ok) SFX.mine();
+      this.afterAction(r.text, r.ok, r.energy);
+      this.refreshOre(ore);
+      return;
+    }
+
     // 林区砍树
     const tree = treeAt(this.world, t.x, t.y);
     if (tree) {
@@ -704,6 +736,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.fadeOut(400, 0, 0, 0);
     this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
       this.refreshAllPlots();
+      this.refreshAllOres();
       this.applyWeather();
       // 新的一天：玩家回到床边
       this.player.setPosition(2 * TILE_PX + 16, 3 * TILE_PX + 16);

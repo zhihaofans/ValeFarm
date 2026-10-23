@@ -530,9 +530,34 @@ def bed_tile():
     return img
 
 
+def ore_tile():
+    """矿脉：比普通石头更大的岩块，带铜色/铁色矿点，挖空后当天隐藏（逻辑在 core/mine.ts）。"""
+    img = grass_tile(23, False)
+    art = [
+        '................',
+        '................',
+        '.......dd.......',
+        '.....ddRRdd.....',
+        '....dRRrrRRd....',
+        '...dRrrrrrRRd...',
+        '...dRrccrrrRd...',
+        '...dRrccrrrRd...',
+        '...dRrrrrrsRd...',
+        '...dRrsiirrRd...',
+        '...dRrriirrRd...',
+        '...dRrrrrrrRd...',
+        '....dRRrrRRd....',
+        '.....dddddd.....',
+        '................',
+        '................',
+    ]
+    pal = {'d': '#3c3c46', 'R': '#5c5c68', 'r': '#7b7b88', 's': '#9a9aa8', 'c': '#d9863f', 'i': '#9ec2d6'}
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
 # 顺序即帧索引，写进 tiles.frames.ts（唯一数据源，改这里要重跑脚本）
-TILE_LIST = [
-    ('grass_a', grass_tile(1, False)),
+TILE_LIST = [    ('grass_a', grass_tile(1, False)),
     ('grass_b', grass_tile(2, True)),
     ('grass_c', grass_tile(3, False)),
     ('wild', wild_grass_tile()),
@@ -553,6 +578,7 @@ TILE_LIST = [
     ('bench', bench_tile()),
     ('lamp', lamp_tile()),
     ('sign', sign_tile()),
+    ('ore', ore_tile()),
 ]
 
 TILE_COLS = 8

@@ -3,6 +3,18 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
+## 未发布（0.9.0 待定 — 需本地跑通 build + e2e 后再 stamp）
+
+- **挖矿收尾**：林区北侧岩壁新增 4 处**矿脉**（固定点位）。做出木镐后站到矿脉旁按「互动」即可开采：每下 6 体力，每处 3 下挖空，每下 1 铜矿石、挖空那一下额外 1 铁矿石；挖空当天消失，**次日清晨回满**。
+- **矿石有去处**：杂货铺/出货箱的「出售」页新增矿石区（铜矿石 22G / 铁矿石 58G），可与作物分开单独卖，也可「矿石全卖」。
+- **物品栏**：材料区显示铜/铁矿石；制作台与快捷栏文案去掉「矿洞后续开放」，改为实际的矿脉指引。
+- **音效**：新增挖矿音色（`SFX.mine`）。
+- **存档 `SAVE_FMT` 升到 3**：新增 `World.ores` 与 `ore:copper`/`ore:iron` 两种物品；v2 旧档按固定点位补满矿脉，矿石键走白名单校验。
+- **美术**：`tools/gen_assets.py` 新增 `ore` 地块（追加在图集末尾，`TILE.ore = 21`，不打乱既有帧号）。
+- 单测 84 → 94 条（新增 `mine.test.ts`，`save.test.ts` 补矿脉/矿石往返与 v2 迁移）。
+- **发布改成 Actions 部署**：新增 `.github/workflows/release.yml` —— 打 `v*` tag（或手动 `workflow_dispatch`）时在 GitHub 上跑 版本校验 → 单测 → build → e2e，全绿后用 `actions/deploy-pages` 部署；任何一步失败都不发布。
+- **master 只留源码**：构建产物 `docs/` 加入 `.gitignore`，改为纯本地产物（`preview` / `test:e2e` / `package` 仍用它）。Pages 的 Source 需改为 `GitHub Actions`，详见 [GITHUB_PAGES.md](dev-docs/GITHUB_PAGES.md)。
+
 ## 0.8.0 — build 23
 
 - 简单丰富村庄地图：商店/NPC 东侧增加广场地砖、水井、长椅、路灯、木牌、花圃和第二栋小屋；木牌/水井可互动。

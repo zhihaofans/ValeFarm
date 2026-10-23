@@ -1,4 +1,6 @@
-# 注意：docs/ 是 GitHub Pages 发布源，screenshots/ 是验收截图，均需入库，不要忽略。
+# 注意：screenshots/ 是验收截图，需入库，不要忽略。
+# docs/ 是本地构建产物，只用于 e2e / preview / package；Pages 由 GitHub Actions 直接部署产物，
+# 所以 docs/ 不再入库（本地仍由 npm run build 生成）。
 
 # ---- macOS / Windows 系统垃圾 ----
 .DS_Store
@@ -21,6 +23,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# ---- 构建产物（本地产物，Pages 由 Actions 部署，不入库） ----
+docs/
 
 # ---- 测试 / 构建缓存 ----
 test-results/

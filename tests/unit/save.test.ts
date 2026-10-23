@@ -10,6 +10,7 @@ import {
 } from '../../src/core/save';
 import { createWorld } from '../../src/core/world';
 import { FARM_W } from '../../src/core/config';
+import { ORE_SPOTS } from '../../src/core/data';
 
 describe('存档 normalize', () => {
   it('空档/垃圾输入回落到可用的新世界，不抛异常', () => {
@@ -144,6 +145,28 @@ describe('存档 normalize', () => {
     const old = normalizeWorld({ fmt: 1, day: 3 });
     expect(old.trees.length).toBe(12);
     expect(old.trees.every((t) => t.hp === 3)).toBe(true);
+  });
+
+  it('林区矿脉与矿石都能存档往返；v2 旧档按固定点位补矿脉', () => {
+    const w = createWorld();
+    w.ores[0].hp = 1;
+    w.ores[1].hp = 0; // 挖空当天
+    w.inventory['ore:copper'] = 4;
+    w.inventory['ore:iron'] = 2;
+    const back = deserialize(serialize(w))!;
+    expect(back.ores.length).toBe(ORE_SPOTS.length);
+    expect(back.ores[0].hp).toBe(1);
+    expect(back.ores[1].hp).toBe(0);
+    expect(back.inventory['ore:copper']).toBe(4);
+    expect(back.inventory['ore:iron']).toBe(2);
+
+    // v2 档（有树、没矿脉）补满矿脉，矿石键仍按白名单放行
+    const old = normalizeWorld({ fmt: 2, day: 3, inventory: { wood: 2, 'ore:copper': 1, 'ore:diamond': 9 } });
+    expect(old.fmt).toBe(3);
+    expect(old.ores.length).toBe(ORE_SPOTS.length);
+    expect(old.ores.every((o) => o.hp === 3)).toBe(true);
+    expect(old.inventory['ore:copper']).toBe(1);
+    expect(old.inventory['ore:diamond']).toBeUndefined();
   });
 
   it('玩家坐标会夹到地图内，y=-1 不会读档后卡在空气墙', () => {

@@ -30,7 +30,7 @@ npm run dev -- --host   # 手机同局域网调试（需 https 或 localhost 才
 
 npm run build        # 类型检查 + 构建 → docs/
 npm run preview      # 预览构建产物 :4173
-npm test             # 单元测试（vitest，84 条，秒级）
+npm test             # 单元测试（vitest，94 条，秒级）
 npm run test:e2e     # 端到端（playwright，38 条，约 50 秒）
 npm run package      # 打 zip（源码 + docs/）
 ```
@@ -66,6 +66,7 @@ src/
 │   ├── economy.ts     买卖、算价
 │   ├── daycycle.ts    每日结算（作物生长、体力恢复、昏倒惩罚）
 │   ├── forest.ts      林区树木状态与砍伐
+│   ├── mine.ts        矿脉状态、挖矿（需木镐）、次日刷新
 │   ├── npc.ts         好感度、送礼、对话
 │   ├── save.ts        ★ 存档序列化 / 反序列化 / 字段归一化 / 版本迁移
 │   ├── storage.ts     IndexedDB 封装（失败降级 localStorage）
@@ -187,7 +188,7 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 
 ## 6. 测试策略
 
-### 单元测试（84 条，`tests/unit/`）
+### 单元测试（94 条，`tests/unit/`）
 
 全是 `core/` 的纯函数，不碰浏览器。改了经济、存档、作物、NPC 逻辑必须保持绿。
 
@@ -199,6 +200,7 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 | `viewport-inset.test.ts` | ★ 视口是否已让开、`uiInsets` 与 `contentInsets` 的分工 |
 | `crops.test.ts` / `economy.test.ts` / `npc.test.ts` | 作物阶段、买卖算价、每日特价、制作、好感度边界 |
 | `forest.test.ts` | 树木点位、砍伐次数、木头产出、体力不足 |
+| `mine.test.ts` | 矿脉点位、木镐门槛、三下挖空产出、次日刷新、矿石定价与卖出 |
 
 ### E2E（38 条，`tests/e2e/`）
 
@@ -245,9 +247,16 @@ npm run test:e2e
 # 5. 打包
 npm run package      # → ../微光农庄-v{ver}-build{build}.zip
 
-# 6. 提交
+# 6. 提交（docs/ 已 .gitignore，不会被带上）
 git add -A && git commit -m "..." && git push
+
+# 7. 打 tag 触发发布：GitHub Actions 会再跑一次 单测/build/e2e，全绿后部署
+git tag v{ver}
+git push origin v{ver}
 ```
+
+> tag 名必须与 `public/version.json` 的 `ver` 一致（`v0.9.0` ↔ `"0.9.0"`），且必须打在 master 的最新提交上，
+> 否则 CI 的第一步校验就会失败（这是故意的：防止 tag 和线上产物对不上）。
 
 `public/version.json` 是版本信息的**唯一数据源**，`tools/stamp.js` 会把构建号注入
 `sw.js` 的 `BUILD` 并回读校验，不要手改任何一处的版本号。
@@ -263,12 +272,18 @@ git add -A && git commit -m "..." && git push
 ## 8. 目录分工（构建产物 vs 文档）
 
 ```
-docs/        构建产物，GitHub Pages 发布源。每次 build 会整个清空重建。
+docs/        构建产物。本地产物目录，已 .gitignore，不入库。每次 build 会整个清空重建。
+             用途：npm run preview 预览、npm run test:e2e 端到端、npm run package 打包校验。
 dev-docs/    人写的文档。build 不会碰，随便加文件。
 ```
 
-**为什么产物必须在 `docs/`**：GitHub Pages 的 "Deploy from a branch" 只允许 `/` 或 `/docs`，
-不能指定别的目录名。所以 `docs/` 这个名字是 Pages 的硬约束，改不了。
+**为什么产物还在 `docs/` 这个目录名**：早先是走 GitHub Pages 的 "Deploy from a branch"（只允许 `/` 或 `/docs`）。
+现在改成 `GitHub Actions` 部署后，目录名已经不受限制，但 `playwright.config.ts`（preview `docs/`）、
+`tools/package.mjs`（校验 `docs/version.json`）和历史习惯都指向它，**所以保持不变**。
+
+**产物为什么不再入库**：每次构建都会变（`vite.config.ts` 注入的 `__BUILD_TIME__` 每次不同），
+提交进去只是噪音，且出现过"手改 docs/ 让产物看起来对"的事故。现在 master 只有源码，
+发布由 tag 触发 CI 构建 + 部署。
 
 ---
 
@@ -293,6 +308,7 @@ dev-docs/    人写的文档。build 不会碰，随便加文件。
 ### 可扩展方向
 
 `GAME_DESIGN.md` 第 10 节「待定 / 可扩展方向」列了内容层面的规划（矿洞、钓鱼、动物等）。
+注意：**矿脉（挖矿）已经做了**，剩下的「矿洞」指的是独立地下场景 —— 需要第二张地图 + 场景切换 + 存档记录所在区域，属于结构性改动，别当成加几块石头。
 技术上都没有硬阻塞，注意两点：
 
 1. 新内容如果要进存档 → 走 §4.4 的三处登记 + 版本迁移

@@ -4,10 +4,10 @@
 //   World 新增字段时必须在这里登记一行，漏登记 = 用户数据静默丢失。
 //   不写 `{ ...defaults, ...raw }` 这种展开 —— 脏数据会原样进内存。
 
-import { FARM_H, FARM_W, MAP_H, MAP_W, SAVE_FMT as FMT_CURRENT, TREE_HP } from './config';
-import { NPCS, TREE_SPOTS } from './data';
+import { FARM_H, FARM_W, MAP_H, MAP_W, ORE_HP, SAVE_FMT as FMT_CURRENT, TREE_HP } from './config';
+import { NPCS, ORE_SPOTS, TREE_SPOTS } from './data';
 import { createWorld } from './world';
-import type { Facing, Inventory, Plot, Season, TreeState, Weather, World } from './types';
+import type { Facing, Inventory, OreState, Plot, Season, TreeState, Weather, World } from './types';
 
 // ---------------------------------------------------------------- 基础类型守卫
 
@@ -63,7 +63,7 @@ function normalizeInventory(raw: unknown): Inventory {
   if (!isObj(raw)) return inv;
   for (const k of Object.keys(raw)) {
     const n = int(raw[k], 0);
-    if (n > 0 && /^(seed:(radish|pea|corn|pumpkin|strawberry|sweetpotato)|crop:(radish|pea|corn|pumpkin|strawberry|sweetpotato):(norm|sil|gold)|tool:(can2|hoe2|pickaxe)|wood)$/.test(k)) {
+    if (n > 0 && /^(seed:(radish|pea|corn|pumpkin|strawberry|sweetpotato)|crop:(radish|pea|corn|pumpkin|strawberry|sweetpotato):(norm|sil|gold)|tool:(can2|hoe2|pickaxe)|wood|ore:(copper|iron))$/.test(k)) {
       inv[k] = n;
     }
   }
@@ -100,6 +100,21 @@ function normalizeTrees(raw: unknown): TreeState[] {
   return TREE_SPOTS.map(([x, y]) => ({ x, y, hp: byPos.get(`${x},${y}`) ?? TREE_HP }));
 }
 
+/** 矿脉同样按固定点位重建：只认白名单里的点，脏档不会把碰撞铺到任意位置 */
+function normalizeOres(raw: unknown): OreState[] {
+  const byPos = new Map<string, number>();
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (!isObj(item)) continue;
+      const x = int(item.x, -1);
+      const y = int(item.y, -1);
+      if (x < 0 || y < 0) continue;
+      byPos.set(`${x},${y}`, Math.min(ORE_HP, Math.max(0, int(item.hp, ORE_HP))));
+    }
+  }
+  return ORE_SPOTS.map(([x, y]) => ({ x, y, hp: byPos.get(`${x},${y}`) ?? ORE_HP }));
+}
+
 // ---------------------------------------------------------------- 迁移链
 // 用整数格式号链式迁移：`if (fmt < N)`。数字比较天然正确，
 // 千万别用版本字符串比较（'1.9' < '1.13' 在字符串下是 false）。
@@ -109,6 +124,9 @@ function migrateFrom(raw: Obj, fmt: number): { data: Obj; fmt: number } {
   let f = fmt;
   // v1 → v2：新增林区树木；旧档没有 trees，normalizeTrees() 会按固定点位补满，无需改旧字段。
   if (f < 2) f = 2;
+  // v2 → v3：新增林区矿脉（含 ore:copper / ore:iron 两种矿石）。
+  // 旧档没有 ores，normalizeOres() 会按固定点位补满；矿石键由 normalizeInventory 白名单放行。
+  if (f < 3) f = 3;
   return { data, fmt: f };
 }
 
@@ -151,6 +169,8 @@ export function normalizeWorld(raw: unknown): World {
       : base.plots,
     // trees —— 必须登记：林区固定点位 + hp
     trees: o.trees === undefined ? base.trees : normalizeTrees(o.trees),
+    // ores —— 必须登记：矿脉固定点位 + hp（挖空当天 hp=0，次日 refreshOres 回满）
+    ores: o.ores === undefined ? base.ores : normalizeOres(o.ores),
     // inventory —— 必须登记（老档/新档都没有 inventory 时回落初始背包）
     inventory: o.inventory === undefined ? base.inventory : normalizeInventory(o.inventory),
     // playerX / playerY —— 必须登记；夹到地图内，避免旧档 y=-1 读档后卡在空气墙

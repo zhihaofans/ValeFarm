@@ -1,0 +1,107 @@
+# 发布流水线：打 v* tag → 校验版本 → 单测 → 构建 → e2e → 部署到 GitHub Pages。
+#
+# 仓库约定（见 dev-docs/GITHUB_PAGES.md）：
+#   · master 保持干净：构建产物 docs/ 只用于本地调试（e2e / preview / package），不提交进仓库
+#   · Pages 的发布源是「GitHub Actions」（不是分支 /docs），部署产物就是这里 build 出来的 docs/
+#   · CI 只校验版本，不 bump；tag 必须打在 master 的最新提交上
+#   · 任何一步失败都不会部署：线上永远等于上一次全绿的产物
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # 手动触发：第一次接入 Pages 时可先跑一次验证整条链路，不必先打 tag
+  workflow_dispatch:
+
+# Pages 部署所需权限（contents 只读即可，产物不再提交回仓库）
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只允许一个发布任务；不取消进行中的，避免部署到一半被掐
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 检出提交
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      # tag 触发的发布才做发布前的严格校验；手动触发时跳过，只验证构建链路
+      - name: 校验 tag 与 public/version.json 一致（tag 触发时）
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -eu
+          TAG="${GITHUB_REF_NAME#v}"
+          VER="$(node -p "require('./public/version.json').ver")"
+          BUILD="$(node -p "require('./public/version.json').build")"
+          echo "tag=$TAG / version.json: ver=$VER build=$BUILD"
+          if [ "$TAG" != "$VER" ]; then
+            echo "::error::tag 与 public/version.json 的 ver 不一致（tag=$TAG, ver=$VER）。请先 stamp 再打 tag。"
+            exit 1
+          fi
+
+      - name: 确认 tag 打在 master 提交上（tag 触发时）
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -eu
+          git fetch --no-tags origin master
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/master)" ]; then
+            echo "::error::tag 打在 $(git rev-parse --short HEAD)，但 master 是 $(git rev-parse --short origin/master)。请把 tag 打在 master 上。"
+            exit 1
+          fi
+
+      - name: 单元测试
+        run: npm test
+
+      - name: 构建（tsc → 清空 docs/ → vite build → 注入 SW 清单）
+        run: npm run build
+
+      - name: 准备 Playwright 浏览器
+        # playwright.config.ts 用 channel: 'chrome'（本机 Chrome，不是捆绑 chromium）。
+        # ubuntu-latest 自带 google-chrome-stable，这一步主要装齐系统依赖并兜底。
+        run: npx playwright install --with-deps chrome
+
+      - name: 端到端（跑的是刚构建出来的 docs/）
+        run: npm run test:e2e
+
+      - name: 上传构建产物（供部署与排查）
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: 另存一份可下载的产物快照（产物不再进仓库，便于回查线上到底是哪份文件）
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-${{ github.ref_name }}
+          path: docs
+          if-no-files-found: warn
+          retention-days: 14
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 部署到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

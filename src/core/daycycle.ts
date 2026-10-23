@@ -6,6 +6,7 @@ import {
   DAY_START_MINUTE, RAIN_CHANCE, SEASON_DAYS,
 } from './config';
 import { CROPS } from './data';
+import { refreshOres } from './mine';
 import type { CropState, Plot, World } from './types';
 
 export interface DayReport {
@@ -94,6 +95,9 @@ export function endDay(w: World, collapsed: boolean): DayReport {
   }
 
   if (w.weather === 'rain') applyRain(w);
+
+  // 矿脉每天清晨回满
+  refreshOres(w);
 
   w.minute = DAY_START_MINUTE;
 

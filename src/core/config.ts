@@ -34,6 +34,8 @@ export const ENERGY = {
   clearStone: 6,
   clearStump: 10,
   chop: 4,
+  /** 挖矿：每下 6 体力（矿脉 3 下一处） */
+  mine: 6,
   talk: 0,
 } as const;
 
@@ -63,5 +65,10 @@ export const SETTINGS_KEY = 'vale-farm.settings';
 export const TREE_HP = 3;
 export const TREE_WOOD = 2;
 
+/** 矿脉：每处 3 下挖空，每下给 1 铜矿石，挖空那一击额外给 1 铁矿石；每天清晨回满 */
+export const ORE_HP = 3;
+export const ORE_COPPER_PER_HIT = 1;
+export const ORE_IRON_BONUS = 1;
+
 /** 当前存档格式号：改 World 结构时 +1，并在 save.ts 的 migrateFrom 里加一档 */
-export const SAVE_FMT = 2;
+export const SAVE_FMT = 3;

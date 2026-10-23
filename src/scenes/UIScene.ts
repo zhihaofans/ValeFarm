@@ -5,7 +5,7 @@ import Phaser from 'phaser';
 import { SEASON_NAMES, SEASON_DAYS, FOREST_X } from '../core/config';
 import { CROPS, CROP_ORDER, QUALITY, RECIPES, TOOL_UPGRADES, dailySeedSpecial, itemName } from '../core/data';
 import {
-  buySeed, buyToolUpgrade, countItem, craft, cropEntries, sellAllCrops, sellCrop, seasonSeeds,
+  buySeed, buyToolUpgrade, countItem, craft, cropEntries, oreEntries, sellAllCrops, sellAllOres, sellCrop, sellOre, seasonSeeds,
 } from '../core/economy';
 import { giveGift, npcDef, talk, tierName, tierOf } from '../core/npc';
 import { exportSave, importSave } from '../core/save';
@@ -681,9 +681,10 @@ export class UIScene extends Phaser.Scene {
 
   private renderSellTab(panel: Panel, w: World, render: () => void): void {
     const entries = cropEntries(w.inventory);
+    const ores = oreEntries(w.inventory);
     let y = 44;
-    if (entries.length === 0) {
-      panel.body.add(label(this, -260, y + 30, '背包里没有可出售的作物。先去田里收获一些吧。'));
+    if (entries.length === 0 && ores.length === 0) {
+      panel.body.add(label(this, -260, y + 30, '背包里没有可出售的东西。先去田里收获，或去林区挖矿。'));
     }
     for (const e of entries.slice(0, 5)) {
       const qName = QUALITY[e.quality].name;
@@ -701,10 +702,35 @@ export class UIScene extends Phaser.Scene {
       panel.body.add([b1, ball]);
       y += 46;
     }
+    // 矿石（挖矿产出）：和作物分开列，价格与"全部卖出"也分开，避免误卖
+    for (const e of ores) {
+      panel.body.add(label(this, -270, y + 20, `${itemName(e.id)} × ${e.n}   单价 ${e.unit}G`, { color: '#c9d6e8' }));
+      const b1 = textButton(this, 170, y + 24, 70, 34, '卖 1', () => {
+        const r = sellOre(w, e.id, 1);
+        this.toast(r.text); if (r.ok) SFX.coin();
+        render();
+      }, { fontSize: 15 });
+      const ball = textButton(this, 254, y + 24, 70, 34, '全卖', () => {
+        const r = sellOre(w, e.id, e.n);
+        this.toast(r.text); if (r.ok) SFX.coin();
+        render();
+      }, { fontSize: 15 });
+      panel.body.add([b1, ball]);
+      y += 46;
+    }
     if (entries.length > 0) {
-      const ball = textButton(this, 0, y + 40, 220, 40, `全部卖出`, () => {
+      const ball = textButton(this, -120, y + 40, 200, 40, `作物全卖`, () => {
         const r = sellAllCrops(w);
         this.toast(`卖出 ${r.count} 份作物，+${r.gold}G`);
+        if (r.gold > 0) SFX.coin();
+        render();
+      }, { bg: 0x8a6a2a, fontSize: 17 });
+      panel.body.add(ball);
+    }
+    if (ores.length > 0) {
+      const ball = textButton(this, 120, y + 40, 200, 40, `矿石全卖`, () => {
+        const r = sellAllOres(w);
+        this.toast(`卖出 ${r.count} 块矿石，+${r.gold}G`);
         if (r.gold > 0) SFX.coin();
         render();
       }, { bg: 0x8a6a2a, fontSize: 17 });
@@ -804,6 +830,7 @@ export class UIScene extends Phaser.Scene {
     const cropLines = cropEntries(w.inventory).map((e) =>
       `${itemName(`crop:${e.crop}:${e.quality}`)} ×${e.n}`);
     const materialLines = [`木头 ×${countItem(w.inventory, 'wood')}`];
+    for (const e of oreEntries(w.inventory)) materialLines.push(`${itemName(e.id)} ×${e.n}`);
     const toolLines: string[] = [];
     toolLines.push(w.toolCan === 2 ? '铜洒水壶（3 格浇水）' : '旧洒水壶');
     toolLines.push(w.toolHoe === 2 ? '铜锄头（2 格开垦）' : '旧锄头');
@@ -825,17 +852,17 @@ export class UIScene extends Phaser.Scene {
 
     let leftY = 24;
     leftY = drawBlock(-270, leftY, '种子', seedLines, 6);
-    leftY = drawBlock(-270, leftY, '材料', materialLines, 2);
+    leftY = drawBlock(-270, leftY, '材料', materialLines, 4);
     let rightY = 24;
     rightY = drawBlock(10, rightY, '作物', cropLines, 6);
     rightY = drawBlock(10, rightY, '工具', toolLines, 8);
     const bottom = Math.max(leftY, rightY);
     if (bottom < 290) {
-      panel.body.add(label(this, -270, bottom + 8, '砍树：站到树旁边，面朝树按「互动」。', { size: 12, color: '#c9a06b' }));
+      panel.body.add(label(this, -270, bottom + 8, '砍树：站到树旁边，面朝树按「互动」。挖矿：带木镐去林区北侧岩壁。', { size: 12, color: '#c9a06b' }));
     }
   }
 
-  /** 制作台：先做一把木镐子，矿洞系统后续接 */
+  /** 制作台：木镐子 → 林区北侧岩壁挖矿脉 */
   private openCrafting(): void {
     if (this.panelOpen) return;
     this.panelOpen = true;
@@ -867,7 +894,7 @@ export class UIScene extends Phaser.Scene {
         panel.body.add(btn);
         y += 92;
       }
-      panel.body.add(label(this, -270, y + 20, '砍树：站到树旁边，面朝树按「互动」。', { size: 14, color: '#c9a06b' }));
+      panel.body.add(label(this, -270, y + 20, '砍树得木头；做好木镐后去林区北侧岩壁挖矿脉（每处 3 下，每天刷新）。', { size: 13, color: '#c9a06b' }));
     };
     render();
   }

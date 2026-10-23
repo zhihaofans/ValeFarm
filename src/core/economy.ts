@@ -1,6 +1,9 @@
 // 经济：背包操作、商店买卖、工具升级。
 
-import { CROPS, CROP_ORDER, QUALITY, RECIPES, dailySeedSpecial, sellPrice, TOOL_UPGRADES } from './data';
+import {
+  CROPS, CROP_ORDER, ORE_IDS, ORE_SELL, QUALITY, RECIPES,
+  dailySeedSpecial, itemName, sellPrice, TOOL_UPGRADES,
+} from './data';
 import type { CropId, Inventory, Quality, Season, World } from './types';
 
 export function addItem(inv: Inventory, id: string, n: number): void {
@@ -116,4 +119,40 @@ export function buyToolUpgrade(w: World, itemId: string): { ok: boolean; text: s
 
 export function qualityName(q: Quality): string {
   return QUALITY[q].name;
+}
+
+// ---------------------------------------------------------------- 矿石
+
+/** 背包里的矿石（按固定顺序，便于 UI 稳定排版） */
+export function oreEntries(inv: Inventory): Array<{ id: string; n: number; unit: number }> {
+  const out: Array<{ id: string; n: number; unit: number }> = [];
+  for (const id of ORE_IDS) {
+    const n = countItem(inv, id);
+    if (n > 0) out.push({ id, n, unit: ORE_SELL[id] });
+  }
+  return out;
+}
+
+export function sellOre(w: World, id: string, n: number): { ok: boolean; text: string; gold: number } {
+  const unit = ORE_SELL[id];
+  if (!unit) return { ok: false, text: '杂货铺不收这个', gold: 0 };
+  const have = countItem(w.inventory, id);
+  const m = Math.min(have, n);
+  if (m <= 0) return { ok: false, text: '没有这个矿石', gold: 0 };
+  const gold = unit * m;
+  removeItem(w.inventory, id, m);
+  w.gold += gold;
+  w.stats.earned += gold;
+  return { ok: true, text: `卖出 ${m} 块${itemName(id)}，+${gold} 金币`, gold };
+}
+
+/** 一次卖掉背包里所有矿石 */
+export function sellAllOres(w: World): { gold: number; count: number } {
+  let gold = 0, count = 0;
+  for (const e of oreEntries(w.inventory)) {
+    const r = sellOre(w, e.id, e.n);
+    gold += r.gold;
+    count += e.n;
+  }
+  return { gold, count };
 }

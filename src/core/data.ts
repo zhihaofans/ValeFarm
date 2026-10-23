@@ -127,6 +127,21 @@ export const TREE_SPOTS: Array<[number, number]> = [
   [26, 13], [30, 13], [34, 13],
 ];
 
+// ---------------------------------------------------------------- 矿脉
+
+/** 矿脉固定点位：林区北侧岩壁一线（tile）；避开树木/道路/水塘 */
+export const ORE_SPOTS: Array<[number, number]> = [
+  [25, 1], [29, 1], [33, 1], [37, 2],
+];
+
+/** 矿石收购价（商店出售页 = 出货箱） */
+export const ORE_SELL: Record<string, number> = {
+  'ore:copper': 22,
+  'ore:iron': 58,
+};
+
+export const ORE_IDS = ['ore:copper', 'ore:iron'] as const;
+
 export interface RecipeDef {
   id: string;
   name: string;
@@ -136,12 +151,12 @@ export interface RecipeDef {
   result: string;
 }
 
-/** 制作台配方：木镐先做出来，矿洞系统后续接 */
+/** 制作台配方：木镐 → 林区北侧岩壁挖矿脉 */
 export const RECIPES: RecipeDef[] = [
   {
     id: 'recipe:pickaxe',
     name: '木镐子',
-    desc: '挖矿用（矿洞后续开放）· 3 木头',
+    desc: '挖矿用 · 3 木头',
     cost: { wood: 3 },
     result: 'tool:pickaxe',
   },
@@ -153,6 +168,8 @@ export function itemName(id: string): string {
   if (id === 'tool:pickaxe') return '木镐子';
   if (id === 'tool:can2') return '铜洒水壶';
   if (id === 'tool:hoe2') return '铜锄头';
+  if (id === 'ore:copper') return '铜矿石';
+  if (id === 'ore:iron') return '铁矿石';
   if (id.startsWith('seed:')) {
     const crop = id.slice(5) as CropId;
     return CROPS[crop] ? `${CROPS[crop].name}种子` : id;

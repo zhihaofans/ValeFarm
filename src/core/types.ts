@@ -54,8 +54,15 @@ export interface TreeState {
   hp: number;
 }
 
+/** 林区的一棵矿脉；hp=0 表示当天已挖空，次日清晨恢复 */
+export interface OreState {
+  x: number;
+  y: number;
+  hp: number;
+}
+
 export interface Inventory {
-  /** 键约定：`seed:<crop>` | `crop:<crop>:<quality>` | `tool:can2` | `tool:hoe2` | `tool:pickaxe` | `wood` */
+  /** 键约定：`seed:<crop>` | `crop:<crop>:<quality>` | `tool:can2` | `tool:hoe2` | `tool:pickaxe` | `wood` | `ore:copper` | `ore:iron` */
   [itemId: string]: number;
 }
 
@@ -84,6 +91,8 @@ export interface World {
   plots: Plot[];
   /** 林区树木状态（固定点位，hp=0 已砍倒） */
   trees: TreeState[];
+  /** 林区矿脉状态（固定点位，hp=0 当天已挖空，次日恢复） */
+  ores: OreState[];
   inventory: Inventory;
   playerX: number;
   playerY: number;

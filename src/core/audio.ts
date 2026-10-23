@@ -59,5 +59,7 @@ export const SFX = {
   sleep() { tone({ freq: 520, dur: 0.3, type: 'sine', vol: 0.12, slide: 260 }); },
   fail() { tone({ freq: 200, dur: 0.15, type: 'sawtooth', vol: 0.1, slide: 120 }); },
   collapse() { tone({ freq: 300, dur: 0.5, type: 'sawtooth', vol: 0.14, slide: 60 }); },
+  /** 挖矿：金属敲石的脆响（高频短促 + 一点低频回弹） */
+  mine() { tone({ freq: 1200, dur: 0.06, type: 'square', vol: 0.1, slide: 900 }); tone({ freq: 520, dur: 0.1, type: 'triangle', vol: 0.16, slide: 320, delay: 0.03 }); },
   rain() { tone({ freq: 260, dur: 0.5, type: 'sine', vol: 0.06, slide: 340 }); },
 };

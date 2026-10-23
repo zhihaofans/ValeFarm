@@ -1,7 +1,0 @@
-# 让 GitHub Pages 跳过 Jekyll 处理。
-#
-# 没有这个文件：Pages 会走 Jekyll 构建，忽略所有以 _ 或 . 开头的文件/目录，
-# 且对 .json / .webmanifest 的处理也会绕一圈。本项目是纯静态产物，
-# 直接原样发布即可 —— 有这个空文件，Pages 就按静态站点处理。
-#
-# 顺带：sw.js 的 scope、manifest 的 start_url 都是相对路径，放子路径（项目页）也能用。

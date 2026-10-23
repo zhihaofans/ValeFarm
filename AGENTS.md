@@ -16,7 +16,7 @@
 
 - Phaser 3 + TypeScript + Vite，纯前端、无后端、无账号；存档在 IndexedDB，失败降级 localStorage。
 - 入口 [main.ts](src/main.ts)；纯逻辑 [core/](src/core/)；场景 [scenes/](src/scenes/)；UI 小件 [ui/](src/ui/)；屏幕适配 [layout.ts](src/layout.ts)；PWA / 横屏 [pwa.ts](src/pwa.ts)、[orientation.ts](src/orientation.ts)。
-- [docs/](docs/) 是构建产物（GitHub Pages 发布源，构建会整目录清空重建）；[dev-docs/](dev-docs/) 是人写文档；[public/](public/) 是静态资源。
+- [docs/](docs/) 是构建产物，**不入库**（`.gitignore` 已忽略），只用于本地 `preview` / `test:e2e` / `package`；线上由 GitHub Actions 构建后直接部署。 [dev-docs/](dev-docs/) 是人写文档；[public/](public/) 是静态资源。
 - 版本唯一数据源是 [public/version.json](public/version.json)；不要把 `package.json` 的版本号当展示版本。
 - 更新记录见 [CHANGELOG.md](CHANGELOG.md)；屏幕适配 / 安全区 / PWA / 触控细节见 [TECH_NOTES.md](dev-docs/TECH_NOTES.md)。
 
@@ -31,6 +31,9 @@ npm run test:e2e                              # Playwright；必须先 build；�
 npm run package                               # 打包；校验 docs/version.json 的 build
 node tools/stamp.js --build --note "..."      # 只在用户要求发版且测试全绿后
 ```
+
+- 打 `v*` tag 会触发 [.github/workflows/release.yml](.github/workflows/release.yml)：校验版本 → 单测 → build → e2e → `actions/deploy-pages` 部署。CI 只校验版本不 bump，tag 必须打在 master 最新提交上；任何一步红都不部署。
+- **产物不进仓库**：`docs/` 只在本地生成。`git rm -r --cached docs` 已完成过，别再 `git add docs`。
 
 - **e2e 读的是 `docs/`，不是 `src/`**。改了源码没重新 `npm run build`，测试全绿也没有意义。
 - 首次跑 e2e 需要 Chrome：`npx playwright install chrome`。
@@ -65,9 +68,9 @@ UIScene 相机必须同时满足：尺寸 = 整块画布、`zoom = 1`、`origin 
 
 ### 3.5 生成物与版本
 
-- [src/core/generated/](src/core/generated/)、[public/assets/](public/assets/)、[docs/](docs/) 都是生成物；改美术/帧索引用 [gen_assets.py](tools/gen_assets.py)，改产物走 `npm run build`。
+- [src/core/generated/](src/core/generated/)、[public/assets/](public/assets/)、`docs/` 都是生成物；改美术/帧索引用 [gen_assets.py](tools/gen_assets.py)，改产物走 `npm run build`。
 - 不手改 `sw.js` 的 `BUILD`，不手写 `CACHE_TAG`；版本统一走 [stamp.js](tools/stamp.js)，缓存名由构建脚本注入。
-- 不为了“让产物看起来对”而手改 [docs/](docs/)；下次构建会全部覆盖。
+- 不为了“让产物看起来对”而手改 `docs/`；下次构建会全部覆盖。
 
 ## 4. 修改地图与边界
 
@@ -76,6 +79,7 @@ UIScene 相机必须同时满足：尺寸 = 整块画布、`zoom = 1`、`origin 
 | 调数值（价格、体力、生长天数） | [config.ts](src/core/config.ts)、[data.ts](src/core/data.ts) |
 | 加作物 / 改作物 | [data.ts](src/core/data.ts) 的 `CROPS` + [ui.frames.ts](src/core/generated/ui.frames.ts) + [gen_assets.py](tools/gen_assets.py) |
 | 加 NPC / 改对话 | [data.ts](src/core/data.ts)、[npc.ts](src/core/npc.ts) |
+| 改矿脉点位 / 挖矿产出 | [data.ts](src/core/data.ts) 的 `ORE_SPOTS`/`ORE_SELL`、[mine.ts](src/core/mine.ts)、[config.ts](src/core/config.ts) 的 `ORE_*` |
 | 改 UI 布局 / 面板 | [UIScene.ts](src/scenes/UIScene.ts)，尺寸统一走 [widgets.ts](src/ui/widgets.ts) |
 | 改屏幕适配 | [layout.ts](src/layout.ts) |
 | 改存档结构 | [types.ts](src/core/types.ts) → [save.ts](src/core/save.ts) → [config.ts](src/core/config.ts) |
@@ -115,7 +119,7 @@ UIScene 相机必须同时满足：尺寸 = 整块画布、`zoom = 1`、`origin 
 - 本项目是公开仓库：GitHub 仓库、GitHub Pages、项目用户名等公开项目信息可以保留；只对个人隐私脱敏。
 - 外部文档/聊天里出现的绝对路径、个人目录、账号等只用于当前会话，不写进仓库；只提炼可复用规则。
 - 不提交 `.env`、密钥、抓包/日志、导出的用户存档；截图和日志里有个人信息先脱敏。
-- 不删 [docs/](docs/)、[screenshots/](screenshots/)、[dev-docs/](dev-docs/)、[public/](public/)；`docs/` 是发布源，截图是验收证据。
+- 不删 [screenshots/](screenshots/)、[dev-docs/](dev-docs/)、[public/](public/)；截图是验收证据。`docs/` 是可再生的本地产物，清掉无害（重新 `npm run build` 即可）。
 - 不修改仓库外文件；需要时先问。
 - 不把临时会话里的私密信息（本机路径、私人账号、私人部署地址）写进仓库文档或代码注释。
 

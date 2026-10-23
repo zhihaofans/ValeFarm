@@ -4,9 +4,9 @@ import {
   FARM_H, FARM_OX, FARM_OY, FARM_W, MAP_H, MAP_W,
   DAY_START_MINUTE, FORCE_SLEEP_MINUTE, SEASON_DAYS,
   START_GOLD, START_MAX_ENERGY, SAVE_FMT,
-  TREE_HP,
+  ORE_HP, TREE_HP,
 } from './config';
-import { NPCS, TREE_SPOTS } from './data';
+import { NPCS, ORE_SPOTS, TREE_SPOTS } from './data';
 import type { Plot, World } from './types';
 
 export const worldVersion = SAVE_FMT;
@@ -50,6 +50,7 @@ export function createWorld(): World {
     toolHoe: 1,
     plots,
     trees: TREE_SPOTS.map(([x, y]) => ({ x, y, hp: TREE_HP })),
+    ores: ORE_SPOTS.map(([x, y]) => ({ x, y, hp: ORE_HP })),
     inventory: { 'seed:radish': 6 },
     playerX: FARM_OX + 1,
     playerY: FARM_OY - 2,

@@ -25,6 +25,7 @@ export const TILE = {
   bench: 18,
   lamp: 19,
   sign: 20,
+  ore: 21,
 } as const;
 
 export type TileName = keyof typeof TILE;
