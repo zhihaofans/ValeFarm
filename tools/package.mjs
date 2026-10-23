@@ -2,13 +2,13 @@
 //
 // 为什么合并成一个包：
 //   以前是源码 zip + dist zip 两个文件，下载后还得自己对版本、对不上就白折腾。
-//   GitHub Pages 要的是 docs/，改代码要的是 src/，两种需求本来就是同一个仓库的两面
+//   GitHub Actions 要的是 docs/（构建产物），改代码要的是 src/，两种需求本来就是同一个仓库的两面
 //   —— 干脆一个包把仓库原样装进去，解压即是一份能 build 也能直接发布的完整项目。
 //
 // 包内结构（与仓库一致，GitHub Pages 可直接把 /docs 设为发布源）：
 //   README.md / package.json / index.html / vite.config.ts ...
 //   src/ tests/ tools/ public/     ← 源码与工程配置
-//   docs/                          ← 构建产物（GitHub Pages 发布源，纯产物）
+//   docs/                          ← 构建产物（本地预览/校验用；线上由 GitHub Actions 部署）
 //   dev-docs/                      ← 人写的文档（交接手册 / 游戏设定 / 部署说明）
 //
 // 用法：node tools/package.mjs [输出目录]
@@ -34,10 +34,6 @@ if (!existsSync(resolve(ROOT, 'docs/index.html'))) {
 const built = JSON.parse(readFileSync(resolve(ROOT, 'docs/version.json'), 'utf-8'));
 if (built.build !== ver.build) {
   console.error(`docs/ 里的产物是 build ${built.build}，源码是 build ${ver.build} —— 先跑 npm run build`);
-  process.exit(1);
-}
-if (!existsSync(resolve(ROOT, 'docs/.nojekyll'))) {
-  console.error('docs/.nojekyll 缺失：GitHub Pages 会走 Jekyll，产物可能被忽略');
   process.exit(1);
 }
 

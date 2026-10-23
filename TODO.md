@@ -6,35 +6,9 @@
 
 ---
 
-## P0 · 立刻能收的三件小事（都是几行改动）
+## P0 · （已清空）
 
-### 1. 把 e2e 收回发布门禁
-
-- **为什么**：0.9.1 期间为了不被测试抖动卡住，`deploy` 只依赖 `build`。现在 e2e 已连续三次全绿（run #6 / #7 / #10），抖动源头（固定 `waitForTimeout` 等晨报）已修掉。
-- **怎么做**：`.github/workflows/release.yml` 里 `deploy.needs` 从 `[build]` 改成 `[build, e2e]`。
-- **验收**：故意让一条 e2e 红（本地模拟），确认部署被拦。
-- **成本**：1 行。**需拍板**：是现在收，还是再观察两版。
-
-### 2. Actions 升到 v5，消掉 Node20 弃用警告
-
-- **为什么**：每次 run 都刷 `##[warning] Node.js 20 is deprecated ... actions/checkout@v4, setup-node@v4, upload-artifact@v4`。
-- **怎么做**：`checkout@v4 → @v5`、`setup-node@v4 → @v5`、`upload-artifact@v4 → @v5`（`upload-pages-artifact@v3` / `deploy-pages@v4` 目前没有 v5，警告消不掉，可忽略）。
-- **验收**：run 里那三条警告消失，build/e2e/deploy 仍全绿。
-- **成本**：3 行。
-
-### 3. 删掉 `public/.nojekyll`（以及 `tools/build.mjs` 里的白名单条目）
-
-- **为什么**：改由 `actions/deploy-pages` 部署后不再走 Jekyll，这个文件已经没有作用，留着只会让后来的人以为还在用分支部署。
-- **验收**：`docs/.nojekyll` 不再生成；线上 404/白屏检查通过。
-- **成本**：2 行。**注意**：`docs/` 现在是本地产物（已 gitignore），删掉不影响仓库结构。
-
-### 4. `package.json` 的版本号（0.1.0）与展示版本（0.9.1）不同步
-
-- **为什么**：CI 日志里每行都是 `vale-farm@0.1.0 build`，和 `version.json` 的 0.9.1 对不上，排查时容易误读。
-- **怎么做**：二选一——① 每次发版让 `stamp.js` 顺手同步 `package.json.version`；② 保持现状，但在 `package.json` 里加注释字段说明"展示版本看 public/version.json"。
-- **成本**：小（推荐 ①，改 `tools/stamp.js` 一处 + 一条单测）。
-
----
+> 上一批 P0 已在 **v0.9.2** 完成：e2e 收回发布门禁、Actions 升 v5、删除 `.nojekyll`、`package.json` 版本随 stamp 同步。明细见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## P1 · 下个版本主线（二选一，建议先做装饰）
 
@@ -184,10 +158,10 @@
 
 | # | 事项 | 我的建议 |
 |---|---|---|
-| 1 | e2e 是否立刻收回发布门禁 | 收（已有三次全绿记录） |
+| 1 | e2e 是否立刻收回发布门禁 | ✅ 已收（v0.9.2） |
 | 2 | 装饰系统 vs 真矿洞，先做哪个 | **先装饰**（矿洞要动相机/碰撞/存档区域，风险高得多） |
 | 2b | 内容纵深先做哪条 | **先 D3 的轻量半套（商店每 7 天限购刷新）+ D4 农场评价**（都不动存档结构），再 D2 研究点，然后 D1 加工链 |
 | 2c | D7 价格波动要不要做 | 建议**做温和版**（下限 70%、恢复快），否则最优解永远是刷单一作物 |
 | 3 | 是否引入开源像素字体（需改"零第三方素材"口径） | 先用①试一版截图对比，你看效果再定 |
-| 4 | `package.json` 版本是否随 stamp 同步 | 同步（消掉日志里的版本噪音） |
+| 4 | `package.json` 版本是否随 stamp 同步 | ✅ 已同步（v0.9.2） |
 | 5 | iOS HUD 压灰：继续挖还是接受现状 | 先做最小复现 PWA，**用证据决定** |

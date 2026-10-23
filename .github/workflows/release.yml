@@ -38,12 +38,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: 检出提交
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: 安装 Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: npm
@@ -96,7 +96,7 @@ jobs:
           path: docs
 
       - name: 另存一份可下载的产物快照（产物不再进仓库，便于回查线上到底是哪份文件）
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: docs-${{ github.ref_name }}
           path: docs
@@ -110,10 +110,10 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: 检出提交
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 安装 Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: npm
@@ -134,7 +134,7 @@ jobs:
 
       - name: 上传 Playwright 报告（失败时才有）
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: playwright-report-${{ github.ref_name }}
           path: |
@@ -144,7 +144,8 @@ jobs:
           retention-days: 14
 
   deploy:
-    needs: build
+    # e2e 收回发布门禁：单测/构建/e2e 任一红都不发布
+    needs: [build, e2e]
     # 只有 tag（发布）或手动触发才部署；推 master 仅做检查，不动线上
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest

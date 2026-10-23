@@ -3,6 +3,13 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
+## 未发布（0.9.2 待定）
+
+- **e2e 收回发布门禁**：`deploy` 改为 `needs: [build, e2e]`，单测/构建/端到端任一红都不发布。0.9.1 期间为绕开测试抖动临时解耦，等待策略修好后连续三次全绿，现已收回。
+- **CI 升级**：`actions/checkout`、`setup-node`、`upload-artifact` 从 v4 升到 **v5**，消掉每次 run 刷屏的 Node.js 20 弃用警告（`upload-pages-artifact` / `deploy-pages` 暂无 v5）。
+- **移除 `public/.nojekyll`**：改由 `actions/deploy-pages` 部署后不再走 Jekyll，该文件已无作用；`tools/package.mjs` 里「缺 `.nojekyll` 就拒绝打包」的校验一并删除。
+- **`package.json` 版本随发版同步**：`tools/stamp.js` 现在同时写 `package.json` 与 `package-lock.json` 的 `version`，消掉 CI 日志里 `vale-farm@0.1.0 build` 这类与实际版本不符的噪音（展示版本仍以 `public/version.json` 为唯一数据源）。
+
 ## 0.9.1 — build 25
 
 - **修 CI：tag 发布卡在"确认 tag 在 master 顶端"**。tag 检出是 detached HEAD，`git fetch origin master` 只会写 `FETCH_HEAD`、不会创建 `origin/master` 引用，于是 `git rev-parse origin/master` 报 `ambiguous argument` 直接把发布干红。改用 `git ls-remote origin refs/heads/master` 取远端尖端，不依赖本地远程跟踪引用。

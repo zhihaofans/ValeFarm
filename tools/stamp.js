@@ -5,7 +5,7 @@
 //       node tools/stamp.js --set 1.2.3 --note "..."
 //       node tools/stamp.js --build          # 只递增构建号（重发同一版本）
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -60,6 +60,26 @@ writeFileSync(verFile, JSON.stringify(meta, null, 2) + '\n');
 let sw = readFileSync(swFile, 'utf-8');
 sw = sw.replace(/const BUILD = '[^']*';/, `const BUILD = '${meta.build}';`);
 writeFileSync(swFile, sw);
+
+// ---- 同步 package.json / package-lock.json 的 version ----
+// 展示版本唯一数据源仍是 public/version.json；这里同步只是为了消掉 CI 日志里
+// `vale-farm@0.1.0 build` 这种和实际版本对不上的噪音（排查时会误导）。
+const pkgFile = resolve(ROOT, 'package.json');
+const lockFile = resolve(ROOT, 'package-lock.json');
+const pkg = JSON.parse(readFileSync(pkgFile, 'utf-8'));
+if (pkg.version !== meta.ver) {
+  pkg.version = meta.ver;
+  writeFileSync(pkgFile, JSON.stringify(pkg, null, 2) + '\n');
+}
+if (existsSync(lockFile)) {
+  const lock = JSON.parse(readFileSync(lockFile, 'utf-8'));
+  let touched = false;
+  if (lock.version !== meta.ver) { lock.version = meta.ver; touched = true; }
+  if (lock.packages && lock.packages[''] && lock.packages[''].version !== meta.ver) {
+    lock.packages[''].version = meta.ver; touched = true;
+  }
+  if (touched) writeFileSync(lockFile, JSON.stringify(lock, null, 2) + '\n');
+}
 
 // ---- 回读校验：校验「语义」，不是「字符串」----
 const swBack = readFileSync(swFile, 'utf-8');
