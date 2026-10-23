@@ -10,6 +10,8 @@ import {
 } from '../core/economy';
 import { giveGift, npcDef, talk, tierName, tierOf } from '../core/npc';
 import { buyDecor } from '../core/decor';
+import { ratingSummary } from '../core/rating';
+import { marketTip, sellMultiplier } from '../core/market';
 import { exportSave, importSave } from '../core/save';
 import { loadSettings, saveSettings } from '../core/storage';
 import { SFX, setSfxEnabled } from '../core/audio';
@@ -704,6 +706,14 @@ export class UIScene extends Phaser.Scene {
     const entries = cropEntries(w.inventory);
     const ores = oreEntries(w.inventory);
     let y = 44;
+    // 集市日把倍率写在最上面：玩家一眼知道要不要"攒到今天卖"
+    const mult = sellMultiplier(w);
+    const market = marketTip(w);
+    if (market) {
+      panel.body.add(label(this, -270, y - 6, `★ ${market}（当前 ×${mult.toFixed(2)}）`,
+        { size: 14, color: '#f2e06a' }));
+      y += 26;
+    }
     if (entries.length === 0 && ores.length === 0) {
       panel.body.add(label(this, -260, y + 30, '背包里没有可出售的东西。先去田里收获，或去林区挖矿。'));
     }
@@ -1207,7 +1217,8 @@ export class UIScene extends Phaser.Scene {
       }, { bg: 0x5b5044, fontSize: 17 });
 
     const stats = label(this, -270, 300,
-      `已收获 ${w.stats.harvested} 份作物 · 累计收入 ${w.stats.earned}G · 昏倒 ${w.stats.collapsedCount} 次`, { size: 14, color: '#c9a06b' });
+      `农场评价 ${ratingSummary(w)} · 已收获 ${w.stats.harvested} 份 · 累计 ${w.stats.earned}G · 昏倒 ${w.stats.collapsedCount} 次`,
+      { size: 13, color: '#c9a06b' });
     panel.body.add([exp, imp, sfxToggle, inventory, help, crafting, env, stats]);
   }
 

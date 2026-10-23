@@ -7,6 +7,7 @@ import {
 } from './config';
 import { CROPS } from './data';
 import { refreshOres } from './mine';
+import { marketTip } from './market';
 import type { CropState, Plot, World } from './types';
 
 export interface DayReport {
@@ -106,5 +107,7 @@ export function endDay(w: World, collapsed: boolean): DayReport {
   if (withered > 0) lines.push(`${withered} 株作物枯萎了。`);
   if (seasonChanged) lines.push('新的季节开始了！商店上了新种子。');
   lines.push(w.weather === 'rain' ? '今天下雨，作物会自动补水。' : '今天是个晴天。');
+  const market = marketTip(w);
+  if (market) lines.push(market);
   return { day: w.day, seasonChanged, withered, rain: w.weather === 'rain', collapsed, lines };
 }

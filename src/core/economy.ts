@@ -4,6 +4,7 @@ import {
   CROPS, CROP_ORDER, DECORS, ORE_IDS, ORE_SELL, QUALITY, RECIPES,
   dailySeedSpecial, itemName, sellPrice, TOOL_UPGRADES,
 } from './data';
+import { sellMultiplier } from './market';
 import type { CropId, Inventory, Quality, Season, World } from './types';
 
 export function addItem(inv: Inventory, id: string, n: number): void {
@@ -97,7 +98,8 @@ export function sellCrop(w: World, crop: CropId, quality: Quality, n: number): {
   const have = countItem(w.inventory, id);
   const m = Math.min(have, n);
   if (m <= 0) return { ok: false, text: '没有这个物品', gold: 0 };
-  const gold = sellPrice(crop, quality) * m;
+  // 集市日按评价加成；非集市日倍率恒为 1，行为与以前完全一致
+  const gold = Math.round(sellPrice(crop, quality) * sellMultiplier(w)) * m;
   removeItem(w.inventory, id, m);
   w.gold += gold;
   w.stats.earned += gold;
@@ -149,7 +151,7 @@ export function sellOre(w: World, id: string, n: number): { ok: boolean; text: s
   const have = countItem(w.inventory, id);
   const m = Math.min(have, n);
   if (m <= 0) return { ok: false, text: '没有这个矿石', gold: 0 };
-  const gold = unit * m;
+  const gold = Math.round(unit * sellMultiplier(w)) * m;
   removeItem(w.inventory, id, m);
   w.gold += gold;
   w.stats.earned += gold;
