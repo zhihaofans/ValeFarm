@@ -88,12 +88,14 @@ describe('collectEnvDiag', () => {
     const m = await import('../../src/dev/envDiag');
     const d = m.collectEnvDiag({ safe: { top: 0, right: 0, bottom: 0, left: 0 }, hudHCss: 52, textTopCss: 60, renderScale: 3 });
     for (const k of [
-      '版本 / 构建', '源码提交', '构建时间', '本次载入', '前端资源',
+      '版本 / 构建', '构建时间', '本次载入', '前端资源',
       '模式', '状态栏样式', 'innerWidth × innerHeight', 'visualViewport', 'screen / availHeight',
       'devicePixelRatio', '--app-h', '#game 盒子', 'canvas 盒子', 'canvas 内部像素',
       'env(t/r/b/l)', '安全区来源', '★ 最终 safe', 'HUD 高度', '面板外点击区顶边', '画布 px / CSS px', 'UA',
     ]) {
       expect(d.summary, `missing ${k}`).toContain(k);
     }
+    // 源码提交必须跟在同一行（单测里没有 Vite define，回退值是 dev）
+    expect(d.summary, '版本行应带上源码提交').toMatch(/版本 \/ 构建: .* · dev/);
   });
 });

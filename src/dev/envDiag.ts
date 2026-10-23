@@ -108,10 +108,17 @@ export function collectEnvDiag(input: EnvDiagInput): EnvDiag {
     ? 'env() 实测有效'
     : (ios && standalone ? 'iOS PWA 兜底 59/34（env 全 0）' : '全 0：系统未遮挡内容');
 
+  // ref 与版本号重复时不重复显示（tag 构建的 ref 就是 vX.Y.Z）
+  const shownVer = liveVersion?.ver ?? APP_VERSION;
+  const refSuffix = GIT_REF && GIT_REF !== 'unknown' && GIT_REF !== shownVer && GIT_REF !== `v${shownVer}`
+    ? ` · ${GIT_REF}`
+    : '';
+
   const rows: [string, string][] = [
-    ['版本 / 构建', `${liveVersion?.ver ?? APP_VERSION} / build ${liveVersion?.build ?? APP_BUILD}`],
-    // 源码提交：产物到底是哪次提交编出来的。真机反馈问题时，先看这一行能不能对上
-    ['源码提交', GIT_REF && GIT_REF !== 'unknown' ? `${GIT_SHA} · ${GIT_REF}` : GIT_SHA],
+    // 版本 / 构建后面直接跟源码提交：产物到底是哪次提交编出来的，一眼能对上。
+    // tag 构建时 ref 与版本号重复（v0.9.1 / 0.9.1），就不重复显示；分支构建才带 ref。
+    ['版本 / 构建', `${liveVersion?.ver ?? APP_VERSION} / build ${liveVersion?.build ?? APP_BUILD}`
+      + ` · ${GIT_SHA}${refSuffix}`],
     ['构建时间', BUILD_TIME ? fmtTime(BUILD_TIME) : 'dev（Vite 未注入）'],
     ['本次载入', fmtTime(PAGE_LOADED_AT)],
     ['前端资源', RESOURCE_NAME],
