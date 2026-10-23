@@ -14,10 +14,14 @@ import { isIosDevice, isStandaloneApp, readSafeInsets, type SafeInsets } from '.
 declare const __APP_VERSION__: string;
 declare const __APP_BUILD__: string;
 declare const __BUILD_TIME__: string;
+declare const __GIT_SHA__: string;
+declare const __GIT_REF__: string;
 
 const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev';
 const APP_BUILD = typeof __APP_BUILD__ === 'string' ? __APP_BUILD__ : '-';
 const BUILD_TIME = typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : '';
+const GIT_SHA = typeof __GIT_SHA__ === 'string' ? __GIT_SHA__ : 'dev';
+const GIT_REF = typeof __GIT_REF__ === 'string' ? __GIT_REF__ : '';
 /**
  * dev server 的 __APP_VERSION__ 是启动时注入的，发版后不重启会一直显示旧版本。
  * 诊断面板运行时再拉一次 version.json，保证标签页/PWA 都能看到当前部署版本。
@@ -106,6 +110,8 @@ export function collectEnvDiag(input: EnvDiagInput): EnvDiag {
 
   const rows: [string, string][] = [
     ['版本 / 构建', `${liveVersion?.ver ?? APP_VERSION} / build ${liveVersion?.build ?? APP_BUILD}`],
+    // 源码提交：产物到底是哪次提交编出来的。真机反馈问题时，先看这一行能不能对上
+    ['源码提交', GIT_REF && GIT_REF !== 'unknown' ? `${GIT_SHA} · ${GIT_REF}` : GIT_SHA],
     ['构建时间', BUILD_TIME ? fmtTime(BUILD_TIME) : 'dev（Vite 未注入）'],
     ['本次载入', fmtTime(PAGE_LOADED_AT)],
     ['前端资源', RESOURCE_NAME],
