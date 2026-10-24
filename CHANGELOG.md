@@ -3,6 +3,14 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
+## 0.9.10 — build 34
+
+- **测试与护栏（无玩法/界面改动）**：
+  - 新增 `tests/e2e/mining.spec.ts`（5 条）：挖矿三道门槛（没镐 / 没拿在手上 / 耐久用尽）、手持挖矿扣耐久、耐久归零当次损坏并移出背包、昏倒罚金文案（10G / 0G 都不再谎报"丢了 50 金币"）。
+  - 新增 `tests/e2e/decor-market.spec.ts`（4 条）：装饰摆放 → 存档 → reload 仍在、收回背包、农田格拒绝、集市日晨报提示与出售页倍率（非集市日不显示）。
+  - 新增 `tests/unit/migrate.test.ts`（8 条）：v1~v4 每一代旧档的迁移链（旧字段零丢失 / 新字段按规则补 / fmt 升到 5 / 幂等 / 空背包老档不凭空塞种子）。其中"空背包"形态取自一份真实的 fmt=1 导出档（该档本身不入库）。
+  - e2e 用例 38 → **47**，单测 122 → **130**。
+
 ## 0.9.9 — build 33
 
 - **修环境诊断的复制按钮**：iOS（尤其 PWA 独立窗口）经常直接拒绝剪贴板，过去只会弹一句"复制失败"。
