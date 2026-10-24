@@ -5,7 +5,7 @@
 //   不写 `{ ...defaults, ...raw }` 这种展开 —— 脏数据会原样进内存。
 
 import { FARM_H, FARM_W, MAP_H, MAP_W, ORE_HP, SAVE_FMT as FMT_CURRENT, TREE_HP } from './config';
-import { DECOR_IDS, NPCS, ORE_SPOTS, TREE_SPOTS } from './data';
+import { DECOR_IDS, NPCS, ORE_SPOTS, TOOLS, TREE_SPOTS, toolMaxDur } from './data';
 import { createWorld } from './world';
 import type { Facing, Inventory, OreState, PlacedDecor, Plot, Season, TreeState, Weather, World } from './types';
 
@@ -108,6 +108,31 @@ function normalizeDecor(raw: unknown): PlacedDecor[] {
   return out;
 }
 
+/**
+ * 工具耐久：键只认 TOOLS 里声明了 maxDur 的 id，值夹到 0..maxDur。
+ * 旧档（没有 toolDur）按背包补满；耐久 <= 0 视为已损坏 —— 直接从背包移除并丢弃该键，
+ * 保证「背包里有镐子 ⇒ 耐久 > 0」这个不变量在读档后始终成立。
+ */
+function normalizeToolDur(raw: unknown, invRaw: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  const src = isObj(raw) ? raw : null;
+  for (const tool of TOOLS) {
+    const max = toolMaxDur(tool.id);
+    if (max <= 0) continue;
+    const fromSave = src ? num(src[tool.id], NaN) : NaN;
+    let dur: number;
+    if (Number.isFinite(fromSave)) {
+      dur = Math.max(0, Math.min(max, Math.floor(fromSave)));
+    } else {
+      // 旧档/缺字段：背包里有这把工具就补满，没有就是 0
+      const owned = isObj(invRaw) && int((invRaw as Obj)[tool.id], 0) > 0;
+      dur = owned ? max : 0;
+    }
+    if (dur > 0) out[tool.id] = dur;
+  }
+  return out;
+}
+
 /** 树木按固定点位重建：只认白名单里的点，避免脏档把碰撞铺到任意位置 */
 function normalizeTrees(raw: unknown): TreeState[] {
   const byPos = new Map<string, number>();
@@ -153,6 +178,9 @@ function migrateFrom(raw: Obj, fmt: number): { data: Obj; fmt: number } {
   // v3 → v4：新增可摆放装饰（World.decor）与 decor:<id> 物品。
   // 旧档没有 decor，normalizeDecor() 会回落成空数组；背包键由 normalizeInventory 白名单放行。
   if (f < 4) f = 4;
+  // v4 → v5：工具加耐久（World.toolDur，仿 Minecraft：类型定上限、实例记当前值）。
+  // 旧档没有这个字段：normalizeWorld 里按「背包有没有这把工具」补满，这里只推格式号。
+  if (f < 5) f = 5;
   return { data, fmt: f };
 }
 
@@ -199,6 +227,8 @@ export function normalizeWorld(raw: unknown): World {
     ores: o.ores === undefined ? base.ores : normalizeOres(o.ores),
     // decor —— 必须登记：玩家自由摆放的装饰，按 id 白名单 + 范围 + 不重复占格过滤
     decor: o.decor === undefined ? base.decor : normalizeDecor(o.decor),
+    // toolDur —— 必须登记：每把工具的当前耐久（键只认 TOOLS 里的 id）
+    toolDur: normalizeToolDur(o.toolDur, o.inventory),
     // inventory —— 必须登记（老档/新档都没有 inventory 时回落初始背包）
     inventory: o.inventory === undefined ? base.inventory : normalizeInventory(o.inventory),
     // playerX / playerY —— 必须登记；夹到地图内，避免旧档 y=-1 读档后卡在空气墙
@@ -217,6 +247,13 @@ export function normalizeWorld(raw: unknown): World {
       collapsedCount: Math.max(0, int(isObj(o.stats) ? o.stats.collapsedCount : undefined, 0)),
     },
   };
+
+  // 不变量：工具耐久 <= 0 时，背包里不能再留着这把工具（否则会出现"有镐但挖不动"的脏状态）
+  for (const tool of TOOLS) {
+    if (toolMaxDur(tool.id) > 0 && (w.toolDur[tool.id] ?? 0) <= 0) {
+      delete w.inventory[tool.id];
+    }
+  }
 
   // plots 数量补齐（老档/截断档）
   while (w.plots.length < FARM_W * FARM_H) {

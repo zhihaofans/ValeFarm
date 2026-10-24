@@ -10,7 +10,7 @@ import {
 } from '../../src/core/save';
 import { createWorld } from '../../src/core/world';
 import { FARM_W, SAVE_FMT } from '../../src/core/config';
-import { ORE_SPOTS } from '../../src/core/data';
+import { ORE_SPOTS, toolMaxDur } from '../../src/core/data';
 
 describe('存档 normalize', () => {
   it('空档/垃圾输入回落到可用的新世界，不抛异常', () => {
@@ -167,6 +167,39 @@ describe('存档 normalize', () => {
     expect(old.ores.every((o) => o.hp === 3)).toBe(true);
     expect(old.inventory['ore:copper']).toBe(1);
     expect(old.inventory['ore:diamond']).toBeUndefined();
+  });
+
+  it('工具耐久：往返保留、旧档补满、脏值夹取、耐久 0 的工具被移出背包', () => {
+    const PICK = 'tool:pickaxe';
+    const MAX = toolMaxDur(PICK);
+
+    // 往返
+    const w = createWorld();
+    w.inventory[PICK] = 1;
+    w.toolDur[PICK] = 7;
+    const back = deserialize(serialize(w))!;
+    expect(back.toolDur[PICK]).toBe(7);
+
+    // 旧档（有镐、没有 toolDur）：补满，不让老玩家突然要重做
+    const old = normalizeWorld({ fmt: 4, inventory: { 'tool:pickaxe': 1 } });
+    expect(old.fmt).toBe(5);
+    expect(old.toolDur[PICK]).toBe(MAX);
+
+    // 旧档（没有镐）：空映射
+    const noTool = normalizeWorld({ fmt: 4, inventory: { wood: 1 } });
+    expect(noTool.toolDur[PICK]).toBeUndefined();
+
+    // 脏值：超上限、负数、非数字
+    expect(normalizeWorld({ toolDur: { 'tool:pickaxe': 999 } }).toolDur[PICK]).toBe(MAX);
+    expect(normalizeWorld({ toolDur: { 'tool:pickaxe': -3 }, inventory: { 'tool:pickaxe': 1 } }).toolDur[PICK]).toBeUndefined();
+    expect(normalizeWorld({ toolDur: { 'tool:pickaxe': 'x' }, inventory: { 'tool:pickaxe': 1 } }).toolDur[PICK]).toBe(MAX);
+
+    // 未知工具 id 一律丢弃
+    expect(normalizeWorld({ toolDur: { 'tool:dragon': 5 } }).toolDur).toEqual({});
+
+    // 不变量：耐久 0 却有物品 → 物品被移除
+    const broken = normalizeWorld({ toolDur: { 'tool:pickaxe': 0 }, inventory: { 'tool:pickaxe': 1 } });
+    expect(broken.inventory[PICK]).toBeUndefined();
   });
 
   it('玩家坐标会夹到地图内，y=-1 不会读档后卡在空气墙', () => {

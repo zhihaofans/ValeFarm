@@ -2,7 +2,7 @@
 
 import {
   CROPS, CROP_ORDER, DECORS, ORE_IDS, ORE_SELL, QUALITY, RECIPES,
-  dailySeedSpecial, itemName, sellPrice, TOOL_UPGRADES,
+  dailySeedSpecial, itemName, sellPrice, toolMaxDur, TOOL_UPGRADES,
 } from './data';
 import { sellMultiplier } from './market';
 import type { CropId, Inventory, Quality, Season, World } from './types';
@@ -90,6 +90,9 @@ export function craft(w: World, recipeId: string): { ok: boolean; text: string }
   }
   for (const [id, n] of Object.entries(recipe.cost)) removeItem(w.inventory, id, n);
   addItem(w.inventory, recipe.result, 1);
+  // 造出带耐久的工具就是满的（通用：只看 TOOLS 里有没有声明 maxDur）
+  const maxDur = toolMaxDur(recipe.result);
+  if (maxDur > 0) w.toolDur[recipe.result] = maxDur;
   return { ok: true, text: `做好了${recipe.name}` };
 }
 

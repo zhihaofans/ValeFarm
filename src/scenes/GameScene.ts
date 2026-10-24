@@ -14,7 +14,7 @@ import {
   doClear, doHarvest, doHoe, doPlant, doWater,
 } from '../core/actions';
 import { chopTree, treeAt } from '../core/forest';
-import { mineOre, oreAt } from '../core/mine';
+import { canMine, mineOre, oreAt } from '../core/mine';
 import { decorAt, decorBlocks, isDecorId, placeDecor, removeDecor } from '../core/decor';
 import { endDay } from '../core/daycycle';
 import { seasonSeeds } from '../core/economy';
@@ -648,6 +648,14 @@ export class GameScene extends Phaser.Scene {
     // 林区矿脉（要木镐；挖空当天不再有产出）
     const ore = oreAt(this.world, t.x, t.y);
     if (ore) {
+      const ui = this.scene.get('ui') as UIScene;
+      // 先过「有镐 / 拿在手上 / 还有耐久」三道门，失败原因各不相同
+      const gate = canMine(this.world, ui.currentQuickItemId());
+      if (!gate.ok) {
+        ui.toast(gate.text);
+        SFX.fail();
+        return;
+      }
       const r = mineOre(this.world, t.x, t.y);
       if (r.ok) SFX.mine();
       this.afterAction(r.text, r.ok, r.energy);

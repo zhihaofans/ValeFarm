@@ -156,11 +156,38 @@ export const RECIPES: RecipeDef[] = [
   {
     id: 'recipe:pickaxe',
     name: '木镐子',
-    desc: '挖矿用 · 3 木头',
+    desc: '挖矿用（耐久 30）· 3 木头',
     cost: { wood: 3 },
     result: 'tool:pickaxe',
   },
 ];
+
+// ---------------------------------------------------------------- 工具（耐久挂在物品定义上）
+
+/**
+ * 工具的物品定义。耐久放这里而不是写在世界状态里，加新工具只要加一行：
+ *   - `maxDur` = 满耐久；背包里那把当前剩多少，存在 `World.toolDur[id]`
+ *   - 没有耐久概念的工具（未来的水壶等）不写 maxDur 即可
+ */
+export interface ToolDef {
+  id: string;
+  name: string;
+  /** 满耐久；缺省 = 该工具没有耐久 */
+  maxDur?: number;
+}
+
+export const TOOLS: ToolDef[] = [
+  { id: 'tool:pickaxe', name: '木镐子', maxDur: 30 },
+];
+
+export function toolDef(id: string): ToolDef | undefined {
+  return TOOLS.find((t) => t.id === id);
+}
+
+/** 满耐久；没有耐久概念的工具返回 0 */
+export function toolMaxDur(id: string): number {
+  return toolDef(id)?.maxDur ?? 0;
+}
 
 // ---------------------------------------------------------------- 装饰
 

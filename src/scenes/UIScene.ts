@@ -10,6 +10,8 @@ import {
 } from '../core/economy';
 import { giveGift, npcDef, talk, tierName, tierOf } from '../core/npc';
 import { buyDecor } from '../core/decor';
+import { toolDur } from '../core/tools';
+import { toolMaxDur } from '../core/data';
 import { ratingSummary } from '../core/rating';
 import { marketTip, sellMultiplier } from '../core/market';
 import { exportSave, importSave } from '../core/save';
@@ -871,7 +873,9 @@ export class UIScene extends Phaser.Scene {
     const items: Array<{ id: string; label: string }> = [];
     const wood = countItem(w.inventory, 'wood');
     if (wood > 0) items.push({ id: 'wood', label: `木头 ×${wood}` });
-    if (countItem(w.inventory, 'tool:pickaxe') > 0) items.push({ id: 'tool:pickaxe', label: '木镐子' });
+    if (countItem(w.inventory, 'tool:pickaxe') > 0) {
+      items.push({ id: 'tool:pickaxe', label: `木镐子 耐久 ${toolDur(w, 'tool:pickaxe')}/${toolMaxDur('tool:pickaxe')}` });
+    }
     if (items.length === 0) {
       panel.body.add(label(this, -260, 96, '暂无可切换道具，去林区砍树试试。', { size: 14, color: '#c9a06b' }));
     }
@@ -921,7 +925,9 @@ export class UIScene extends Phaser.Scene {
     const toolLines: string[] = [];
     toolLines.push(w.toolCan === 2 ? '铜洒水壶（3 格浇水）' : '旧洒水壶');
     toolLines.push(w.toolHoe === 2 ? '铜锄头（2 格开垦）' : '旧锄头');
-    if (countItem(w.inventory, 'tool:pickaxe') > 0) toolLines.push('木镐子（挖矿用）');
+    if (countItem(w.inventory, 'tool:pickaxe') > 0) {
+      toolLines.push(`木镐子（耐久 ${toolDur(w, 'tool:pickaxe')}/${toolMaxDur('tool:pickaxe')}）`);
+    }
 
     const drawBlock = (x: number, startY: number, title: string, lines: string[], max = 8): number => {
       panel.body.add(label(this, x, startY, title, { size: 15, color: '#f2e06a' }));
