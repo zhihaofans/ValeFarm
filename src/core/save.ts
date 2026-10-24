@@ -5,7 +5,7 @@
 //   不写 `{ ...defaults, ...raw }` 这种展开 —— 脏数据会原样进内存。
 
 import { FARM_H, FARM_W, MAP_H, MAP_W, ORE_HP, SAVE_FMT as FMT_CURRENT, TREE_HP } from './config';
-import { DECOR_IDS, NPCS, ORE_SPOTS, TOOLS, TREE_SPOTS, toolMaxDur } from './data';
+import { DECOR_IDS, KNOWLEDGE_SHOP, NPCS, ORE_SPOTS, TOOLS, TREE_SPOTS, toolMaxDur } from './data';
 import { createWorld } from './world';
 import type { Facing, Inventory, OreState, PlacedDecor, Plot, Season, TreeState, Weather, World } from './types';
 
@@ -108,6 +108,17 @@ function normalizeDecor(raw: unknown): PlacedDecor[] {
   return out;
 }
 
+/** 已兑换的知识升级：只认 KNOWLEDGE_SHOP 里的 id，去重保序 */
+function normalizeUnlocked(raw: unknown): string[] {
+  const out: string[] = [];
+  if (!Array.isArray(raw)) return out;
+  const known = new Set(KNOWLEDGE_SHOP.map((k) => k.id));
+  for (const v of raw) {
+    if (typeof v === 'string' && known.has(v) && !out.includes(v)) out.push(v);
+  }
+  return out;
+}
+
 /**
  * 工具耐久：键只认 TOOLS 里声明了 maxDur 的 id，值夹到 0..maxDur。
  * 旧档（没有 toolDur）按背包补满；耐久 <= 0 视为已损坏 —— 直接从背包移除并丢弃该键，
@@ -181,6 +192,9 @@ function migrateFrom(raw: Obj, fmt: number): { data: Obj; fmt: number } {
   // v4 → v5：工具加耐久（World.toolDur，仿 Minecraft：类型定上限、实例记当前值）。
   // 旧档没有这个字段：normalizeWorld 里按「背包有没有这把工具」补满，这里只推格式号。
   if (f < 5) f = 5;
+  // v5 → v6：新增研究（World.knowledge / World.unlocked）。
+  // 旧档没有这两个字段：normalizeWorld 里回落成 0 与空数组，这里只推格式号。
+  if (f < 6) f = 6;
   return { data, fmt: f };
 }
 
@@ -229,6 +243,10 @@ export function normalizeWorld(raw: unknown): World {
     decor: o.decor === undefined ? base.decor : normalizeDecor(o.decor),
     // toolDur —— 必须登记：每把工具的当前耐久（键只认 TOOLS 里的 id）
     toolDur: normalizeToolDur(o.toolDur, o.inventory),
+    // knowledge —— 必须登记：研究点（非负整数）
+    knowledge: Math.max(0, int(o.knowledge, 0)),
+    // unlocked —— 必须登记：已兑换的知识升级（白名单 + 去重）
+    unlocked: normalizeUnlocked(o.unlocked),
     // inventory —— 必须登记（老档/新档都没有 inventory 时回落初始背包）
     inventory: o.inventory === undefined ? base.inventory : normalizeInventory(o.inventory),
     // playerX / playerY —— 必须登记；夹到地图内，避免旧档 y=-1 读档后卡在空气墙

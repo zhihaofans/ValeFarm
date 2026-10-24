@@ -107,6 +107,10 @@ export interface World {
    * 满耐久/是否有耐久概念都在 data.ts 的 `TOOLS` 里定义（仿 Minecraft：类型定上限、实例记当前值）。
    * 键只允许 TOOLS 里的 id；耐久归零的物品会被移除。
    */
+  /** 研究点（知识点）：把多余产出"研究掉"换来的，用于兑换升级 */
+  knowledge: number;
+  /** 已兑换的知识升级 id（白名单，防重复购买） */
+  unlocked: string[];
   toolDur: Record<string, number>;
   inventory: Inventory;
   playerX: number;

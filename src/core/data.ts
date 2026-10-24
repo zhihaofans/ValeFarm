@@ -162,6 +162,53 @@ export const RECIPES: RecipeDef[] = [
   },
 ];
 
+// ---------------------------------------------------------------- 研究（知识点）
+
+/**
+ * 把物品"研究掉"能换多少知识点。
+ * 原则：原料少、成品多；矿石比木材值钱；品质越高越多。
+ * 只放固定分值，不做随机 —— 玩家要能算清楚"我该研究什么"。
+ */
+export const RESEARCH_POINTS: Record<string, number> = {
+  wood: 1,
+  'ore:copper': 3,
+  'ore:iron': 6,
+};
+
+/** 作物按品质给分（键是品质） */
+export const RESEARCH_CROP_POINTS: Record<string, number> = {
+  norm: 2,
+  sil: 3,
+  gold: 4,
+};
+
+/** 某物品研究一次得多少点；不支持研究的返回 0 */
+export function researchPointsOf(itemId: string): number {
+  if (itemId.startsWith('crop:')) {
+    const q = itemId.split(':')[2] ?? 'norm';
+    return RESEARCH_CROP_POINTS[q] ?? 0;
+  }
+  return RESEARCH_POINTS[itemId] ?? 0;
+}
+
+export interface KnowledgeShopItem {
+  id: string;
+  name: string;
+  desc: string;
+  cost: number;
+}
+
+/**
+ * 知识点能换什么。
+ * 设计意图：给后期一条**不依赖金币**的成长线 —— 钱会溢出，知识点不会。
+ * 两条都复用已有机制（工具升级 / 体力上限），不引入新系统。
+ */
+export const KNOWLEDGE_SHOP: KnowledgeShopItem[] = [
+  { id: 'kn:hoe2', name: '铜锄头', desc: '一次开垦 2 格（等同商店 500G 的那件）', cost: 40 },
+  { id: 'kn:can2', name: '铜洒水壶', desc: '一次浇 3 格（等同商店 800G 的那件）', cost: 60 },
+  { id: 'kn:stamina', name: '体力上限 +10', desc: '最大体力 +10（只能换一次）', cost: 50 },
+];
+
 // ---------------------------------------------------------------- 工具（耐久挂在物品定义上）
 
 /**

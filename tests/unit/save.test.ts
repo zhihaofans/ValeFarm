@@ -182,7 +182,7 @@ describe('存档 normalize', () => {
 
     // 旧档（有镐、没有 toolDur）：补满，不让老玩家突然要重做
     const old = normalizeWorld({ fmt: 4, inventory: { 'tool:pickaxe': 1 } });
-    expect(old.fmt).toBe(5);
+    expect(old.fmt).toBe(SAVE_FMT);
     expect(old.toolDur[PICK]).toBe(MAX);
 
     // 旧档（没有镐）：空映射
