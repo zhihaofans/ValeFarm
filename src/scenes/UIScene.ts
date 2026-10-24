@@ -23,6 +23,7 @@ import { TILE } from '../core/generated/tiles.frames';
 import { Joystick } from '../ui/joystick';
 import { UI_DEPTH, label, makePanel, modalCenterY, textButton, uiScale, type Panel } from '../ui/widgets';
 import { buildEnvDiagPanel } from '../ui/panels/envDiagPanel';
+import { buildInventoryPanel } from '../ui/panels/inventoryPanel';
 import { currentSafeInsets, isStandaloneApp, NO_INSETS, uiInsets, type SafeInsets } from '../layout';
 import type { CropId, World } from '../core/types';
 import type { GameScene } from './GameScene';
@@ -903,56 +904,18 @@ export class UIScene extends Phaser.Scene {
   }
 
   /** 物品栏：种子 / 作物 / 材料 / 工具分两列展示 */
+  /** 物品栏（面板本体在 ui/panels/inventoryPanel.ts） */
   private openInventory(): void {
     if (this.panelOpen) return;
     this.panelOpen = true;
     this.pauseGame(true);
-    const panel = makePanel(this, '物品栏', () => {
-      this.panelOpen = false; this.pauseGame(false); this.activePanel = null;
+    const panel = buildInventoryPanel({
+      scene: this,
+      world: this.gameScene.world,
+      onClose: () => { this.panelOpen = false; this.pauseGame(false); this.activePanel = null; },
     });
     this.activePanel = panel;
     this.placePanel(panel);
-    const w = this.gameScene.world;
-
-    const seedLines = CROP_ORDER
-      .map((c) => ({ c, n: countItem(w.inventory, 'seed:' + c) }))
-      .filter((e) => e.n > 0)
-      .map((e) => `${CROPS[e.c].name}种子 ×${e.n}`);
-    const cropLines = cropEntries(w.inventory).map((e) =>
-      `${itemName(`crop:${e.crop}:${e.quality}`)} ×${e.n}`);
-    const materialLines = [`木头 ×${countItem(w.inventory, 'wood')}`];
-    for (const e of oreEntries(w.inventory)) materialLines.push(`${itemName(e.id)} ×${e.n}`);
-    const toolLines: string[] = [];
-    toolLines.push(w.toolCan === 2 ? '铜洒水壶（3 格浇水）' : '旧洒水壶');
-    toolLines.push(w.toolHoe === 2 ? '铜锄头（2 格开垦）' : '旧锄头');
-    if (countItem(w.inventory, 'tool:pickaxe') > 0) {
-      toolLines.push(`木镐子（耐久 ${toolDur(w, 'tool:pickaxe')}/${toolMaxDur('tool:pickaxe')}）`);
-    }
-
-    const drawBlock = (x: number, startY: number, title: string, lines: string[], max = 8): number => {
-      panel.body.add(label(this, x, startY, title, { size: 15, color: '#f2e06a' }));
-      let yy = startY + 24;
-      for (const line of lines.slice(0, max)) {
-        panel.body.add(label(this, x + 8, yy, line, { size: 14 }));
-        yy += 21;
-      }
-      if (lines.length > max) {
-        panel.body.add(label(this, x + 8, yy, `…还有 ${lines.length - max} 项`, { size: 12, color: '#c9a06b' }));
-        yy += 18;
-      }
-      return yy + 8;
-    };
-
-    let leftY = 24;
-    leftY = drawBlock(-270, leftY, '种子', seedLines, 6);
-    leftY = drawBlock(-270, leftY, '材料', materialLines, 4);
-    let rightY = 24;
-    rightY = drawBlock(10, rightY, '作物', cropLines, 6);
-    rightY = drawBlock(10, rightY, '工具', toolLines, 8);
-    const bottom = Math.max(leftY, rightY);
-    if (bottom < 290) {
-      panel.body.add(label(this, -270, bottom + 8, '砍树：站到树旁边，面朝树按「互动」。挖矿：带木镐去林区北侧岩壁。', { size: 12, color: '#c9a06b' }));
-    }
   }
 
   /** 制作台：木镐子 → 林区北侧岩壁挖矿脉 */
