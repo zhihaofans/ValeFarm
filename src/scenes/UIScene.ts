@@ -3,9 +3,8 @@
 
 import Phaser from 'phaser';
 import { SEASON_NAMES, SEASON_DAYS, FOREST_X } from '../core/config';
-import { CROPS, CROP_ORDER, DECORS, QUALITY, RECIPES } from '../core/data';
-import { countItem, craft, cropEntries } from '../core/economy';
-import { giveGift, npcDef, talk, tierName, tierOf } from '../core/npc';
+import { CROPS, CROP_ORDER, DECORS, RECIPES } from '../core/data';
+import { countItem, craft } from '../core/economy';
 import { ratingSummary } from '../core/rating';
 import { exportSave, importSave } from '../core/save';
 import { loadSettings, saveSettings } from '../core/storage';
@@ -20,6 +19,7 @@ import { buildInventoryPanel } from '../ui/panels/inventoryPanel';
 import { buildQuickbarPanel } from '../ui/panels/quickbarPanel';
 import { buildShopPanel, type ShopTab } from '../ui/panels/shopPanel';
 import { buildDayReportPanel, buildSleepConfirmPanel } from '../ui/panels/dayPanels';
+import { buildDialogPanel, buildGiftPickerPanel } from '../ui/panels/dialogPanels';
 import { currentSafeInsets, isStandaloneApp, NO_INSETS, uiInsets, type SafeInsets } from '../layout';
 import type { CropId } from '../core/types';
 import type { GameScene } from './GameScene';
@@ -739,71 +739,37 @@ export class UIScene extends Phaser.Scene {
     this.openShop('sell');
   }
 
+  /** NPC 对话（面板本体在 ui/panels/dialogPanels.ts） */
+  /** NPC 对话（面板本体在 ui/panels/dialogPanels.ts） */
   openDialog(npcId: string): void {
     if (this.panelOpen) return;
     this.panelOpen = true;
     this.pauseGame(true);
-    const w = this.gameScene.world;
-    const def = npcDef(npcId);
-    const panel = makePanel(this, `${def.name} · ${tierName(tierOf(w.npcs[npcId].friendship))}`, () => {
-      this.panelOpen = false; this.pauseGame(false); this.activePanel = null;
+    const panel = buildDialogPanel({
+      scene: this,
+      world: this.gameScene.world,
+      npcId,
+      onGift: () => this.openGiftPicker(npcId),
+      onClose: () => { this.panelOpen = false; this.pauseGame(false); this.activePanel = null; },
     });
     this.activePanel = panel;
     this.placePanel(panel);
-    const r = talk(w, npcId);
-    let y = 30;
-    for (const line of r.lines) {
-      panel.body.add(label(this, -270, y, `「${line}」`, { size: 18 }));
-      y += 44;
-    }
-    if (r.rewardLine) {
-      panel.body.add(label(this, -270, y, `★ ${r.rewardLine}`, { color: '#f2e06a' }));
-      y += 44;
-    }
-    if (r.friendUp > 0) {
-      panel.body.add(label(this, -270, y, `好感度 +${r.friendUp}`, { color: '#e05252', size: 15 }));
-      y += 30;
-    }
-    panel.body.add(label(this, -270, y + 8, `好感度：${Math.floor(w.npcs[npcId].friendship)}（${tierName(tierOf(w.npcs[npcId].friendship))}）· 最爱：${CROPS[def.lovedGift].name}`, { size: 14, color: '#c9a06b' }));
-
-    const giftBtn = textButton(this, -160, 280, 150, 42, w.npcs[npcId].giftedToday ? '今天已送礼' : '送 礼', () => {
-      if (w.npcs[npcId].giftedToday) return;
-      this.openGiftPicker(npcId);
-    }, { bg: w.npcs[npcId].giftedToday ? 0x555f55 : 0x8a6a2a });
-    panel.body.add(giftBtn);
   }
 
+  /** 送礼选择器；先关掉对话面板，避免两个 modal 叠加后 activePanel 指向已销毁的容器 */
   private openGiftPicker(npcId: string): void {
-    // 先把 NPC 对话面板关掉：否则两个 modal 叠加，activePanel 会指向已销毁的
-    // 选择器，closeTopPanel() 可能在对话还可见时就解除暂停。
     this.activePanel?.close();
     this.panelOpen = true;
     this.pauseGame(true);
-    const w = this.gameScene.world;
-    const entries = cropEntries(w.inventory);
-    const panel = makePanel(this, '送什么好呢？', () => {
-      this.panelOpen = false;
-      this.pauseGame(false);
-      this.activePanel = null;
+    const panel = buildGiftPickerPanel({
+      scene: this,
+      world: this.gameScene.world,
+      npcId,
+      toast: (t) => this.toast(t),
+      onClose: () => { this.panelOpen = false; this.pauseGame(false); this.activePanel = null; },
     });
     this.activePanel = panel;
     this.placePanel(panel);
-    let y = 40;
-    if (entries.length === 0) {
-      panel.body.add(label(this, -260, y + 20, '背包里没有可以送的东西。'));
-    }
-    for (const e of entries.slice(0, 5)) {
-      const b = textButton(this, 0, y + 24, 500, 40,
-        `${CROPS[e.crop].name}（${QUALITY[e.quality].name}）× ${e.n}`, () => {
-          const r = giveGift(w, npcId, `crop:${e.crop}:${e.quality}`);
-          if (!r.ok) { this.toast(r.text); return; }
-          SFX.harvest();
-          this.toast(r.text + (r.rewardLine ? ` ★${r.rewardLine}` : ''));
-          panel.close();
-        }, { fontSize: 16, bg: 0x5b5044 });
-      panel.body.add(b);
-      y += 50;
-    }
   }
 
   /** 睡觉确认（面板本体在 ui/panels/dayPanels.ts） */
