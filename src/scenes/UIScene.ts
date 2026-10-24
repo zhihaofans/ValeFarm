@@ -19,6 +19,7 @@ import { buildEnvDiagPanel } from '../ui/panels/envDiagPanel';
 import { buildInventoryPanel } from '../ui/panels/inventoryPanel';
 import { buildQuickbarPanel } from '../ui/panels/quickbarPanel';
 import { buildShopPanel, type ShopTab } from '../ui/panels/shopPanel';
+import { buildDayReportPanel, buildSleepConfirmPanel } from '../ui/panels/dayPanels';
 import { currentSafeInsets, isStandaloneApp, NO_INSETS, uiInsets, type SafeInsets } from '../layout';
 import type { CropId } from '../core/types';
 import type { GameScene } from './GameScene';
@@ -805,55 +806,34 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
+  /** 睡觉确认（面板本体在 ui/panels/dayPanels.ts） */
+  /** 睡觉确认（面板本体在 ui/panels/dayPanels.ts） */
   openSleepConfirm(): void {
     if (this.panelOpen) return;
     this.panelOpen = true;
     this.pauseGame(true);
-    const panel = makePanel(this, '睡觉', () => { this.panelOpen = false; this.pauseGame(false); this.activePanel = null; });
+    const panel = buildSleepConfirmPanel({
+      scene: this,
+      onSleep: () => { this.panelOpen = false; this.pauseGame(false); this.gameScene.sleep(false); },
+      onCancel: () => { this.panelOpen = false; this.pauseGame(false); this.activePanel = null; },
+    });
     this.activePanel = panel;
     this.placePanel(panel);
-    panel.body.add(label(this, -240, 60, '今天到此为止？睡觉会结算作物生长，', { size: 18 }));
-    panel.body.add(label(this, -240, 88, '未浇水的作物会停滞一天。', { size: 18 }));
-    const yes = textButton(this, -110, 210, 160, 46, '睡觉', () => {
-      panel.close();
-      this.panelOpen = false;
-      this.pauseGame(false);
-      this.gameScene.sleep(false);
-    }, { bg: 0x3f7d5a, fontSize: 19 });
-    const no = textButton(this, 110, 210, 160, 46, '再转一会儿', () => {
-      panel.close();
-      this.panelOpen = false;
-      this.pauseGame(false);
-    }, { bg: 0x5b5044, fontSize: 19 });
-    panel.body.add([yes, no]);
   }
 
+  /** 晨报（面板本体在 ui/panels/dayPanels.ts） */
   showDayReport(lines: string[]): void {
     if (this.panelOpen) return;
     this.panelOpen = true;
     this.pauseGame(true);
-    const w = this.gameScene.world;
-    const season = seasonOf(w.day);
-    const panel = makePanel(this, `第 ${w.day} 天 · ${SEASON_NAMES[season]}季 ${dayOfSeason(w.day)}/${SEASON_DAYS}`, () => {
-      this.panelOpen = false; this.pauseGame(false); this.activePanel = null;
+    const panel = buildDayReportPanel({
+      scene: this,
+      world: this.gameScene.world,
+      lines,
+      onClose: () => { this.panelOpen = false; this.pauseGame(false); this.activePanel = null; },
     });
     this.activePanel = panel;
     this.placePanel(panel);
-    let y = 40;
-    for (const l of lines) {
-      panel.body.add(label(this, -270, y, `· ${l}`, { size: 17 }));
-      y += 34;
-    }
-    // 竖屏本来就能玩，这个按钮只是「顺便帮你转横屏」：文案要和提示卡片保持一致
-    const go = textButton(this, 0, y + 60, 220, 46, '横屏全屏', () => {
-      // 必须在用户手势里同步发起全屏/锁屏请求：这是 iOS 之外所有浏览器唯一的放行时机。
-      // 放在 panel.close() 之前，避免任何异步等待把"用户手势"上下文丢掉。
-      window.__valeEnterLandscape?.();
-      panel.close();
-      this.panelOpen = false;
-      this.pauseGame(false);
-    }, { fontSize: 18 });
-    panel.body.add(go);
   }
 
   onGameReady(): void {
