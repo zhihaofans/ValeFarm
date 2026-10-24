@@ -3,15 +3,10 @@
 
 import Phaser from 'phaser';
 import { SEASON_NAMES, SEASON_DAYS, FOREST_X } from '../core/config';
-import { CROPS, CROP_ORDER, DECORS, QUALITY, RECIPES, TOOL_UPGRADES, dailySeedSpecial, itemName } from '../core/data';
-import {
-  buySeed, buyToolUpgrade, countItem, craft, cropEntries, oreEntries,
-  sellAllCrops, sellAllOres, sellCrop, sellOre, seasonSeeds,
-} from '../core/economy';
+import { CROPS, CROP_ORDER, DECORS, QUALITY, RECIPES } from '../core/data';
+import { countItem, craft, cropEntries } from '../core/economy';
 import { giveGift, npcDef, talk, tierName, tierOf } from '../core/npc';
-import { buyDecor } from '../core/decor';
 import { ratingSummary } from '../core/rating';
-import { marketTip, sellMultiplier } from '../core/market';
 import { exportSave, importSave } from '../core/save';
 import { loadSettings, saveSettings } from '../core/storage';
 import { SFX, setSfxEnabled } from '../core/audio';
@@ -23,8 +18,9 @@ import { UI_DEPTH, label, makePanel, modalCenterY, textButton, uiScale, type Pan
 import { buildEnvDiagPanel } from '../ui/panels/envDiagPanel';
 import { buildInventoryPanel } from '../ui/panels/inventoryPanel';
 import { buildQuickbarPanel } from '../ui/panels/quickbarPanel';
+import { buildShopPanel, type ShopTab } from '../ui/panels/shopPanel';
 import { currentSafeInsets, isStandaloneApp, NO_INSETS, uiInsets, type SafeInsets } from '../layout';
-import type { CropId, World } from '../core/types';
+import type { CropId } from '../core/types';
 import type { GameScene } from './GameScene';
 
 export class UIScene extends Phaser.Scene {
@@ -645,171 +641,21 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
-  openShop(openTab: 'seed' | 'sell' | 'tool' | 'decor' = 'seed'): void {
+  /** 杂货铺（面板本体在 ui/panels/shopPanel.ts；出货箱复用这里的「出售」页） */
+  /** 杂货铺（面板本体在 ui/panels/shopPanel.ts） */
+  openShop(openTab: ShopTab = 'seed'): void {
     if (this.panelOpen) return;
     this.panelOpen = true;
     this.pauseGame(true);
-    let tab: 'seed' | 'sell' | 'tool' | 'decor' = openTab;
-    const panel = makePanel(this, '杂货铺', () => {
-      this.panelOpen = false; this.pauseGame(false); this.activePanel = null;
+    const panel = buildShopPanel({
+      scene: this,
+      world: this.gameScene.world,
+      initialTab: openTab,
+      toast: (t) => this.toast(t),
+      onClose: () => { this.panelOpen = false; this.pauseGame(false); this.activePanel = null; },
     });
     this.activePanel = panel;
     this.placePanel(panel);
-    const render = () => {
-      panel.body.removeAll(true);
-      const w = this.gameScene.world;
-      const tabs = textButton(this, -180, 8, 100, 34, '买种子', () => { tab = 'seed'; render(); }, { bg: tab === 'seed' ? 0x3f7d5a : 0x5b5044, fontSize: 15 });
-      const tabs2 = textButton(this, -60, 8, 100, 34, '出售', () => { tab = 'sell'; render(); }, { bg: tab === 'sell' ? 0x3f7d5a : 0x5b5044, fontSize: 15 });
-      const tabs3 = textButton(this, 60, 8, 100, 34, '工具', () => { tab = 'tool'; render(); }, { bg: tab === 'tool' ? 0x3f7d5a : 0x5b5044, fontSize: 15 });
-      const tabs4 = textButton(this, 180, 8, 100, 34, '装饰', () => { tab = 'decor'; render(); }, { bg: tab === 'decor' ? 0x3f7d5a : 0x5b5044, fontSize: 15 });
-      panel.body.add([tabs, tabs2, tabs3, tabs4]);
-      if (tab === 'seed') this.renderSeedTab(panel, w, render);
-      else if (tab === 'sell') this.renderSellTab(panel, w, render);
-      else if (tab === 'tool') this.renderToolTab(panel, w, render);
-      else this.renderDecorTab(panel, w, render);
-    };
-    render();
-  }
-
-  private renderSeedTab(panel: Panel, w: World, render: () => void): void {
-    let y = 44;
-    const seeds = seasonSeeds(w.season);
-    const special = dailySeedSpecial(w.season, w.day);
-    if (seeds.length === 0) {
-      panel.body.add(label(this, -260, y + 30, '这个季节没有种子出售。'));
-    }
-    for (const c of seeds) {
-      const def = CROPS[c];
-      const specialPrice = special?.crop === c ? special.price : null;
-      const isSpecial = specialPrice !== null;
-      const unit = specialPrice ?? def.seedPrice;
-      const days = def.stageThresholds.reduce((a, b) => a + b, 0);
-      const priceLine = isSpecial
-        ? `★${def.name} ${unit}G（原${def.seedPrice}G）`
-        : `${def.name} ${def.seedPrice}G`;
-      panel.body.add(label(this, -270, y + 20, `${priceLine} · ${days}天 · 卖${def.baseSell}G`, { size: 15 }));
-      const b1 = textButton(this, 150, y + 24, 80, 34, '买 1', () => {
-        const r = buySeed(w, c, 1);
-        this.toast(r.text); if (r.ok) SFX.coin();
-        render();
-      }, { fontSize: 15 });
-      const b5 = textButton(this, 244, y + 24, 80, 34, '买 5', () => {
-        const r = buySeed(w, c, 5);
-        this.toast(r.text); if (r.ok) SFX.coin();
-        render();
-      }, { fontSize: 15 });
-      panel.body.add([b1, b5]);
-      y += 46;
-    }
-    panel.body.add(label(this, -270, y + 20, `当前金币：${w.gold}G`, { color: '#f2e06a' }));
-  }
-
-  private renderSellTab(panel: Panel, w: World, render: () => void): void {
-    const entries = cropEntries(w.inventory);
-    const ores = oreEntries(w.inventory);
-    let y = 44;
-    // 集市日把倍率写在最上面：玩家一眼知道要不要"攒到今天卖"
-    const mult = sellMultiplier(w);
-    const market = marketTip(w);
-    if (market) {
-      panel.body.add(label(this, -270, y - 6, `★ ${market}（当前 ×${mult.toFixed(2)}）`,
-        { size: 14, color: '#f2e06a' }));
-      y += 26;
-    }
-    if (entries.length === 0 && ores.length === 0) {
-      panel.body.add(label(this, -260, y + 30, '背包里没有可出售的东西。先去田里收获，或去林区挖矿。'));
-    }
-    for (const e of entries.slice(0, 5)) {
-      const qName = QUALITY[e.quality].name;
-      panel.body.add(label(this, -270, y + 20, `${CROPS[e.crop].name}（${qName}）× ${e.n}   单价 ${e.unit}G`));
-      const b1 = textButton(this, 170, y + 24, 70, 34, '卖 1', () => {
-        const r = sellCrop(w, e.crop, e.quality, 1);
-        this.toast(r.text); if (r.ok) SFX.coin();
-        render();
-      }, { fontSize: 15 });
-      const ball = textButton(this, 254, y + 24, 70, 34, '全卖', () => {
-        const r = sellCrop(w, e.crop, e.quality, e.n);
-        this.toast(r.text); if (r.ok) SFX.coin();
-        render();
-      }, { fontSize: 15 });
-      panel.body.add([b1, ball]);
-      y += 46;
-    }
-    // 矿石（挖矿产出）：和作物分开列，价格与"全部卖出"也分开，避免误卖
-    for (const e of ores) {
-      panel.body.add(label(this, -270, y + 20, `${itemName(e.id)} × ${e.n}   单价 ${e.unit}G`, { color: '#c9d6e8' }));
-      const b1 = textButton(this, 170, y + 24, 70, 34, '卖 1', () => {
-        const r = sellOre(w, e.id, 1);
-        this.toast(r.text); if (r.ok) SFX.coin();
-        render();
-      }, { fontSize: 15 });
-      const ball = textButton(this, 254, y + 24, 70, 34, '全卖', () => {
-        const r = sellOre(w, e.id, e.n);
-        this.toast(r.text); if (r.ok) SFX.coin();
-        render();
-      }, { fontSize: 15 });
-      panel.body.add([b1, ball]);
-      y += 46;
-    }
-    if (entries.length > 0) {
-      const ball = textButton(this, -120, y + 40, 200, 40, `作物全卖`, () => {
-        const r = sellAllCrops(w);
-        this.toast(`卖出 ${r.count} 份作物，+${r.gold}G`);
-        if (r.gold > 0) SFX.coin();
-        render();
-      }, { bg: 0x8a6a2a, fontSize: 17 });
-      panel.body.add(ball);
-    }
-    if (ores.length > 0) {
-      const ball = textButton(this, 120, y + 40, 200, 40, `矿石全卖`, () => {
-        const r = sellAllOres(w);
-        this.toast(`卖出 ${r.count} 块矿石，+${r.gold}G`);
-        if (r.gold > 0) SFX.coin();
-        render();
-      }, { bg: 0x8a6a2a, fontSize: 17 });
-      panel.body.add(ball);
-    }
-  }
-
-  private renderToolTab(panel: Panel, w: World, render: () => void): void {
-    let y = 60;
-    panel.body.add(label(this, -270, y - 20, '已拥有：', { color: '#c9a06b' }));
-    panel.body.add(label(this, -180, y - 20, `${w.toolCan === 2 ? '铜洒水壶（3 格浇水）' : '旧洒水壶'}   ${w.toolHoe === 2 ? '铜锄头（2 格开垦）' : '旧锄头'}`));
-    y += 16;
-    for (const t of TOOL_UPGRADES) {
-      const owned = (t.id === 'tool:can2' && w.toolCan === 2) || (t.id === 'tool:hoe2' && w.toolHoe === 2);
-      panel.body.add(label(this, -270, y + 20, `${t.name}  ${t.price}G\n${t.desc}`, { size: 16 }));
-      const b = textButton(this, 180, y + 30, 120, 38, owned ? '已拥有' : '购买', () => {
-        if (owned) return;
-        const r = buyToolUpgrade(w, t.id);
-        this.toast(r.text); if (r.ok) SFX.coin();
-        render();
-      }, { bg: owned ? 0x555f55 : 0x3f7d5a, fontSize: 15 });
-      panel.body.add(b);
-      y += 92;
-    }
-    panel.body.add(label(this, -270, y + 10, `当前金币：${w.gold}G`, { color: '#f2e06a' }));
-  }
-
-  /** 商店「装饰」页签：买来进背包，选中后按「互动」摆到自己院子里 */
-  private renderDecorTab(panel: Panel, w: World, render: () => void): void {
-    panel.body.add(label(this, -270, 34, '买来先进背包；在快捷栏「装饰」页选中后按「互动」摆放。',
-      { size: 13, color: '#c9a06b' }));
-    let y = 56;
-    for (const d of DECORS) {
-      const owned = countItem(w.inventory, d.id);
-      const tag = d.blocks ? '' : '（不挡路）';
-      panel.body.add(label(this, -270, y + 12,
-        `${d.name}${tag}  ${d.price}G${owned > 0 ? `  已拥有 ×${owned}` : ''}`, { size: 16 }));
-      const b = textButton(this, 200, y + 16, 90, 36, '买 1', () => {
-        const r = buyDecor(w, d.id, 1);
-        this.toast(r.text);
-        if (r.ok) SFX.coin(); else SFX.fail();
-        render();
-      }, { fontSize: 15 });
-      panel.body.add(b);
-      y += 42;
-    }
   }
 
   /** 快捷栏选择器（面板本体在 ui/panels/quickbarPanel.ts） */
