@@ -74,6 +74,16 @@ describe('旧档迁移链', () => {
     expect(w.toolDur['tool:pickaxe']).toBe(toolMaxDur('tool:pickaxe'));
   });
 
+  it('v1 且背包为空（真实老档的常见形态）：不崩、种子不会被凭空塞进来', () => {
+    // 真机导出的 v1 档里 inventory 常常是 {}（背包清空 / 早期版本没写背包）
+    const w = normalizeWorld(saveV1({ inventory: {} }));
+    expect(w.fmt).toBe(SAVE_FMT);
+    expect(w.inventory).toEqual({});
+    expect(w.trees.length).toBe(TREE_SPOTS.length);
+    expect(w.ores.length).toBe(ORE_SPOTS.length);
+    expect(w.toolDur).toEqual({});
+  });
+
   it('v2 → 5：树木 hp 原样保留，矿脉补满', () => {
     const trees = TREE_SPOTS.map(([x, y], i) => ({ x, y, hp: i === 0 ? 0 : TREE_HP }));
     const w = normalizeWorld({ ...saveV1({ fmt: 2 }), trees });
