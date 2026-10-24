@@ -66,13 +66,16 @@ jobs:
             exit 1
           fi
 
-      - name: 确认 tag 打在 master 提交上（tag 触发时）
+      - name: 确认 tag 在 master 历史里（tag 触发时）
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           set -eu
           # tag 检出是 detached HEAD：`git fetch origin master` 只更新 FETCH_HEAD，
           # 不会创建 origin/master 引用（踩过：这里报 ambiguous argument 直接把发布干红）。
           # 所以直接问远端 master 的 sha。
+          #
+          # 判定用「祖先」而不是「等于顶端」：发布之后再推一条文档/CI 提交是很正常的操作，
+          # 用等号会把它误判成"tag 打错提交"（v0.9.7 就这么红过一次）。
           MASTER_SHA="$(git ls-remote origin refs/heads/master | cut -f1)"
           HEAD_SHA="$(git rev-parse HEAD)"
           echo "远端 master=$MASTER_SHA"
@@ -81,8 +84,8 @@ jobs:
             echo "::error::取不到远端 master 的 sha（网络或权限问题）"
             exit 1
           fi
-          if [ "$HEAD_SHA" != "$MASTER_SHA" ]; then
-            echo "::error::tag 打在 $(git rev-parse --short HEAD)，但 master 顶端是 $(echo "$MASTER_SHA" | cut -c1-7)。请把 tag 打在 master 上。"
+          if ! git merge-base --is-ancestor "$HEAD_SHA" "$MASTER_SHA"; then
+            echo "::error::tag 打在 $(git rev-parse --short HEAD)，它不在 master 历史里。请把 tag 打在 master（或其历史提交）上。"
             exit 1
           fi
 
