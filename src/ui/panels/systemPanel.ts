@@ -82,7 +82,7 @@ export function buildSystemPanel(deps: SystemPanelDeps): Panel {
     }, { bg: 0x5b5044, fontSize: 17 });
 
   const stats = label(s, -270, 300,
-    `农场评价 ${ratingSummary(w)} · 已收获 ${w.stats.harvested} 份 · 累计 ${w.stats.earned}G · 昏倒 ${w.stats.collapsedCount} 次`,
+    `农场评价 ${ratingSummary(w)} · 知识点 ${w.knowledge} · 已收获 ${w.stats.harvested} 份 · 累计 ${w.stats.earned}G · 昏倒 ${w.stats.collapsedCount} 次`,
     { size: 13, color: '#c9a06b' });
 
   panel.body.add([exp, imp, sfxToggle, inventory, help, crafting, env, stats]);

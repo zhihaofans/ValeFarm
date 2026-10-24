@@ -4,8 +4,8 @@
 import Phaser from 'phaser';
 import { UI_FONT } from '../ui/font';
 import { SEASON_NAMES, SEASON_DAYS, FOREST_X } from '../core/config';
-import { CROPS, CROP_ORDER, DECORS, RECIPES } from '../core/data';
-import { countItem, craft } from '../core/economy';
+import { CROPS, CROP_ORDER, DECORS } from '../core/data';
+import { countItem } from '../core/economy';
 import { importSave } from '../core/save';
 import { loadSettings } from '../core/storage';
 import { SFX, setSfxEnabled } from '../core/audio';
@@ -13,7 +13,7 @@ import { clockText, dayOfSeason, seasonOf } from '../core/world';
 import { UI } from '../core/generated/ui.frames';
 import { TILE } from '../core/generated/tiles.frames';
 import { Joystick } from '../ui/joystick';
-import { UI_DEPTH, label, makePanel, modalCenterY, textButton, uiScale, type Panel } from '../ui/widgets';
+import { UI_DEPTH, modalCenterY, textButton, uiScale, type Panel } from '../ui/widgets';
 import { buildEnvDiagPanel } from '../ui/panels/envDiagPanel';
 import { buildInventoryPanel } from '../ui/panels/inventoryPanel';
 import { buildQuickbarPanel } from '../ui/panels/quickbarPanel';
@@ -21,6 +21,7 @@ import { buildShopPanel, type ShopTab } from '../ui/panels/shopPanel';
 import { buildDayReportPanel, buildSleepConfirmPanel } from '../ui/panels/dayPanels';
 import { buildDialogPanel, buildGiftPickerPanel } from '../ui/panels/dialogPanels';
 import { buildSystemPanel } from '../ui/panels/systemPanel';
+import { buildCraftingPanel } from '../ui/panels/craftingPanel';
 import { currentSafeInsets, NO_INSETS, uiInsets, type SafeInsets } from '../layout';
 import type { CropId } from '../core/types';
 import type { GameScene } from './GameScene';
@@ -698,41 +699,20 @@ export class UIScene extends Phaser.Scene {
     this.placePanel(panel);
   }
 
-  /** 制作台：木镐子 → 林区北侧岩壁挖矿脉 */
+
+  /** 制作台（配方 / 研究 / 兑换；面板本体在 ui/panels/craftingPanel.ts） */
   private openCrafting(): void {
     if (this.panelOpen) return;
     this.panelOpen = true;
     this.pauseGame(true);
-    const panel = makePanel(this, '制作台', () => {
-      this.panelOpen = false; this.pauseGame(false); this.activePanel = null;
+    const panel = buildCraftingPanel({
+      scene: this,
+      world: this.gameScene.world,
+      toast: (t) => this.toast(t),
+      onClose: () => { this.panelOpen = false; this.pauseGame(false); this.activePanel = null; },
     });
     this.activePanel = panel;
     this.placePanel(panel);
-    const render = () => {
-      panel.body.removeAll(true);
-      const w = this.gameScene.world;
-      const wood = countItem(w.inventory, 'wood');
-      panel.body.add(label(this, -270, 24, `木头：${wood}`, { size: 16, color: '#f2e06a' }));
-      let y = 70;
-      for (const recipe of RECIPES) {
-        const owned = recipe.result.startsWith('tool:') && countItem(w.inventory, recipe.result) > 0;
-        const enough = Object.entries(recipe.cost).every(([id, n]) => countItem(w.inventory, id) >= n);
-        panel.body.add(label(this, -270, y, `${recipe.name}`, { size: 18, color: '#f4ead8' }));
-        panel.body.add(label(this, -270, y + 26, `${recipe.desc} · 木头 ${countItem(w.inventory, 'wood')} / ${recipe.cost.wood ?? 0}`, { size: 14, color: '#c9a06b' }));
-        const btn = textButton(this, 180, y + 24, 150, 40,
-          owned ? '已拥有' : enough ? '制作' : '材料不足', () => {
-            if (owned) return;
-            const r = craft(w, recipe.id);
-            this.toast(r.text);
-            if (r.ok) SFX.coin(); else SFX.fail();
-            render();
-          }, { bg: owned ? 0x555f55 : enough ? 0x3f7d5a : 0x5b5044, fontSize: 16 });
-        panel.body.add(btn);
-        y += 92;
-      }
-      panel.body.add(label(this, -270, y + 20, '砍树得木头；做好木镐后去林区北侧岩壁挖矿脉（每处 3 下，每天刷新）。', { size: 13, color: '#c9a06b' }));
-    };
-    render();
   }
 
   openSellBin(): void {
