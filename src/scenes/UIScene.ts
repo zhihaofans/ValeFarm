@@ -5,9 +5,8 @@ import Phaser from 'phaser';
 import { SEASON_NAMES, SEASON_DAYS, FOREST_X } from '../core/config';
 import { CROPS, CROP_ORDER, DECORS, RECIPES } from '../core/data';
 import { countItem, craft } from '../core/economy';
-import { ratingSummary } from '../core/rating';
-import { exportSave, importSave } from '../core/save';
-import { loadSettings, saveSettings } from '../core/storage';
+import { importSave } from '../core/save';
+import { loadSettings } from '../core/storage';
 import { SFX, setSfxEnabled } from '../core/audio';
 import { clockText, dayOfSeason, seasonOf } from '../core/world';
 import { UI } from '../core/generated/ui.frames';
@@ -20,7 +19,8 @@ import { buildQuickbarPanel } from '../ui/panels/quickbarPanel';
 import { buildShopPanel, type ShopTab } from '../ui/panels/shopPanel';
 import { buildDayReportPanel, buildSleepConfirmPanel } from '../ui/panels/dayPanels';
 import { buildDialogPanel, buildGiftPickerPanel } from '../ui/panels/dialogPanels';
-import { currentSafeInsets, isStandaloneApp, NO_INSETS, uiInsets, type SafeInsets } from '../layout';
+import { buildSystemPanel } from '../ui/panels/systemPanel';
+import { currentSafeInsets, NO_INSETS, uiInsets, type SafeInsets } from '../layout';
 import type { CropId } from '../core/types';
 import type { GameScene } from './GameScene';
 
@@ -848,71 +848,25 @@ export class UIScene extends Phaser.Scene {
     this.fileInput = input;
   }
 
+  /** 系统菜单（面板本体在 ui/panels/systemPanel.ts） */
   openSystem(): void {
     if (this.panelOpen) { this.showTip('面板已经打开啦，先关掉它'); return; }
     this.panelOpen = true;
     this.pauseGame(true);
-    const panel = makePanel(this, '系统', () => { this.panelOpen = false; this.pauseGame(false); this.activePanel = null; });
+    const panel = buildSystemPanel({
+      scene: this,
+      world: this.gameScene.world,
+      settings: this.settings,
+      toast: (t) => this.toast(t),
+      onClose: () => { this.panelOpen = false; this.pauseGame(false); this.activePanel = null; },
+      onReopen: () => this.openSystem(),
+      onInventory: () => this.openInventory(),
+      onCrafting: () => this.openCrafting(),
+      onEnvDiag: () => this.openEnvDiag(),
+      onImportClick: () => this.fileInput?.click(),
+    });
     this.activePanel = panel;
     this.placePanel(panel);
-    const w = this.gameScene.world;
-
-    const exp = textButton(this, -170, 60, 260, 46, '导出存档（下载 JSON）', () => {
-      const data = exportSave(w);
-      const blob = new Blob([data], { type: 'application/json' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `vale-farm-save-day${w.day}.json`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 3000);
-      this.toast('存档已导出');
-    }, { fontSize: 17 });
-
-    const imp = textButton(this, 170, 60, 260, 46, '导入存档（选择文件）', () => {
-      this.fileInput?.click();
-    }, { bg: 0x5b5044, fontSize: 17 });
-
-    const sfxToggle = textButton(this, -170, 130, 260, 46,
-      `音效：${this.settings.sfx ? '开' : '关'}`, () => {
-        this.settings.sfx = !this.settings.sfx;
-        setSfxEnabled(this.settings.sfx);
-        saveSettings(this.settings);
-        SFX.ui();
-        // 重建面板刷新按钮文案
-        panel.close();
-        this.panelOpen = false;
-        this.pauseGame(false);
-        this.openSystem();
-      }, { bg: 0x5b5044, fontSize: 17 });
-
-    const inventory = textButton(this, 170, 130, 260, 46, '物品栏', () => {
-      panel.close();
-      this.openInventory();
-    }, { bg: 0x5b5044, fontSize: 17 });
-
-    const help = textButton(this, -170, 190, 260, 46, '操作说明', () => {
-      this.toast('左下拖动移动 / 右下按钮做动作 / 种子槽点按切换 / 走到商店、出货箱、小屋前按动作键');
-    }, { bg: 0x5b5044, fontSize: 17 });
-
-    const crafting = textButton(this, 170, 190, 260, 46, '制作台', () => {
-      panel.close();
-      this.openCrafting();
-    }, { bg: 0x5b5044, fontSize: 17 });
-
-    // 按钮文案里直接带当前模式：不点进诊断也能一眼确认「这是 PWA 还是标签页」
-    const env = textButton(this, 0, 250, 545, 46,
-      `环境诊断（当前：${isStandaloneApp() ? 'PWA 独立模式' : '标签页模式'}）`, () => {
-        panel.close();
-        this.panelOpen = false;
-        this.pauseGame(false);
-        this.activePanel = null;
-        this.openEnvDiag();
-      }, { bg: 0x5b5044, fontSize: 17 });
-
-    const stats = label(this, -270, 300,
-      `农场评价 ${ratingSummary(w)} · 已收获 ${w.stats.harvested} 份 · 累计 ${w.stats.earned}G · 昏倒 ${w.stats.collapsedCount} 次`,
-      { size: 13, color: '#c9a06b' });
-    panel.body.add([exp, imp, sfxToggle, inventory, help, crafting, env, stats]);
   }
 
   /**
