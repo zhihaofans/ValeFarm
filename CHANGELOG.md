@@ -3,7 +3,7 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
-## 未发布（0.9.11 待定）
+## 0.9.11 — build 35
 
 - **研究（D2）第一步：core 与存档**。把多余产出"研究掉"换知识点，知识点可兑换已有机制（铜锄头 40 / 铜洒水壶 60 / 体力上限 +10 于 50）—— 给后期一条不依赖金币的成长线。
   - `World.knowledge`、`World.unlocked`；`SAVE_FMT` 升到 **6**，旧档回落 0 与空数组。
