@@ -120,6 +120,27 @@ describe('日循环', () => {
     expect(w.minute).toBe(360); // 6:00
   });
 
+  it('昏倒罚金的文案按实际扣到的钱说：够罚 / 掉光 / 没钱可罚', () => {
+    const rich = createWorld();
+    rich.gold = 120;
+    const r1 = endDay(rich, true);
+    expect(rich.gold).toBe(70);
+    expect(r1.lines.join('\n')).toContain('还丢了 50 金币');
+
+    const short = createWorld();
+    short.gold = 10;
+    const r2 = endDay(short, true);
+    expect(short.gold).toBe(0);
+    expect(r2.lines.join('\n')).toContain('身上的 10 金币全掉光了');
+    expect(r2.lines.join('\n')).not.toContain('还丢了 50');
+
+    const broke = createWorld();
+    broke.gold = 0;
+    const r3 = endDay(broke, true);
+    expect(broke.gold).toBe(0);
+    expect(r3.lines.join('\n')).toContain('身上没有金币');
+  });
+
   it('昏倒次日体力减半并罚金币，但不会扣成负数', () => {
     const w = plantedWorld('radish');
     w.gold = 10;

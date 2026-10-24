@@ -80,8 +80,11 @@ export function endDay(w: World, collapsed: boolean): DayReport {
   w.weather = Math.random() < RAIN_CHANCE ? 'rain' : 'sun';
 
   // 体力与金币
+  let goldLost = 0;
   if (collapsed) {
     w.energy = Math.max(1, Math.floor(w.maxEnergy * COLLAPSE_NEXT_DAY_ENERGY_RATIO));
+    // 先算实际扣多少再扣：身无分文时不能扣成负数，文案也得按真实金额写
+    goldLost = Math.min(Math.max(0, w.gold), COLLAPSE_GOLD_PENALTY);
     w.gold = Math.max(0, w.gold - COLLAPSE_GOLD_PENALTY);
     w.stats.collapsedCount += 1;
   } else {
@@ -103,7 +106,15 @@ export function endDay(w: World, collapsed: boolean): DayReport {
   w.minute = DAY_START_MINUTE;
 
   const lines: string[] = [];
-  if (collapsed) lines.push(`你体力透支昏倒了…体力恢复到一半，还丢了 ${COLLAPSE_GOLD_PENALTY} 金币。`);
+  if (collapsed) {
+    // 三种情况分开说，避免"身无分文还说丢了 50 金币"这种假账
+    const goldNote = goldLost <= 0
+      ? '身上没有金币，没被罚。'
+      : goldLost >= COLLAPSE_GOLD_PENALTY
+        ? `还丢了 ${COLLAPSE_GOLD_PENALTY} 金币。`
+        : `身上的 ${goldLost} 金币全掉光了。`;
+    lines.push(`你体力透支昏倒了…体力恢复到一半，${goldNote}`);
+  }
   if (withered > 0) lines.push(`${withered} 株作物枯萎了。`);
   if (seasonChanged) lines.push('新的季节开始了！商店上了新种子。');
   lines.push(w.weather === 'rain' ? '今天下雨，作物会自动补水。' : '今天是个晴天。');
