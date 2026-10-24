@@ -2,7 +2,7 @@
 // 表现层只调用 core 的纯逻辑函数 —— 状态机/经济/结算都在 core 里可单测。
 
 import Phaser from 'phaser';
-import { UI_FONT } from '../ui/font';
+import { fs, UI_FONT } from '../ui/font';
 import {
   FARM_H, FARM_OX, FARM_OY, FARM_W,
   MAP_H, MAP_W, TILE_PX,
@@ -789,7 +789,7 @@ export class GameScene extends Phaser.Scene {
     const x = (FARM_OX + fx) * TILE_PX + 16;
     const y = (FARM_OY + fy) * TILE_PX;
     const t = this.add.text(x, y, text, {
-      fontSize: '16px', color: '#ffe08a', fontFamily: UI_FONT,
+      fontSize: `${fs(16)}px`, color: '#ffe08a', fontFamily: UI_FONT,
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(100);
     this.tweens.add({

@@ -2,7 +2,7 @@
 // 与 GameScene 单向依赖：只调用其公开方法，不直接改地块。
 
 import Phaser from 'phaser';
-import { UI_FONT } from '../ui/font';
+import { FONT_SCALE, UI_FONT } from '../ui/font';
 import { SEASON_NAMES, SEASON_DAYS, FOREST_X } from '../core/config';
 import { CROPS, CROP_ORDER, DECORS } from '../core/data';
 import { countItem } from '../core/economy';
@@ -25,6 +25,9 @@ import { buildCraftingPanel } from '../ui/panels/craftingPanel';
 import { currentSafeInsets, NO_INSETS, uiInsets, type SafeInsets } from '../layout';
 import type { CropId } from '../core/types';
 import type { GameScene } from './GameScene';
+
+/** 字号缩放（像素字 12px 设计在手机上偏小，见 ui/font.ts 的说明） */
+const px = (n: number): number => Math.round(n * FONT_SCALE);
 
 export class UIScene extends Phaser.Scene {
   private gameScene!: GameScene;
@@ -276,10 +279,10 @@ export class UIScene extends Phaser.Scene {
     const S = this.DP; // CSS → 画布像素
     // 竖屏横向只有 ~390 CSS px，字号要小一档，否则一组数据就占满
     const compact = W / S < 640;
-    const fs = compact ? 13 : 17;
-    const sub = compact ? 11 : 15;
+    const fs = px(compact ? 13 : 17);
+    const sub = px(compact ? 11 : 15);
     // 竖屏两行（日期 / 时间）叠着排，横屏一行放完
-    const lineH = compact ? fs + 3 : fs + 4;
+    const lineH = compact ? Math.round(fs * 1.2) : Math.round(fs * 1.25);
     const lines = compact ? 2 : 1;
     // 上下各留 9px：这是"文字不贴遮挡边"的实体保证，比盯 env() 数值可靠
     const padY = 9;
@@ -355,7 +358,7 @@ export class UIScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(UI_DEPTH.hud + 2).setOrigin(0, 0.5);
     this.energyBarMaxW = barW - 2 * S;
     this.energyText = this.add.text(energyX + barW / 2, midY, '', {
-      fontSize: `${(compact ? 10 : 13) * S}px`, color: '#ffffff', fontFamily: UI_FONT,
+      fontSize: `${px(compact ? 10 : 13) * S}px`, color: '#ffffff', fontFamily: UI_FONT,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH.hud + 3);
   }
 
@@ -573,7 +576,7 @@ export class UIScene extends Phaser.Scene {
       .setStrokeStyle(3 * S, 0xc9a06b, 1).setInteractive();
     box.on('pointerup', () => { /* 吞掉点击，别穿透到下面的按钮 */ });
     const msg = this.add.text(cx, cy - 18 * S, text, {
-      fontSize: `${15 * S}px`, color: '#f4ead8', fontFamily: UI_FONT,
+      fontSize: `${px(15) * S}px`, color: '#f4ead8', fontFamily: UI_FONT,
       align: 'center', wordWrap: { width: boxW - 32 * S },
     }).setOrigin(0.5);
     // 按钮**手工建**，不用 textButton：那个返回的 Container 位置在 add 进另一个
@@ -584,7 +587,7 @@ export class UIScene extends Phaser.Scene {
     const btnBg = this.add.rectangle(cx, btnY, btnW, btnH, 0x3f7d5a)
       .setStrokeStyle(2 * S, 0xffffff, 0.35).setInteractive();
     const btnTxt = this.add.text(cx, btnY, '知道了', {
-      fontSize: `${16 * S}px`, color: '#ffffff', fontFamily: UI_FONT,
+      fontSize: `${px(16) * S}px`, color: '#ffffff', fontFamily: UI_FONT,
     }).setOrigin(0.5);
     const close = () => this.dismissTip();
     btnBg.on('pointerdown', close);
@@ -610,7 +613,7 @@ export class UIScene extends Phaser.Scene {
     // 还容易被灵动岛那条深色带看着像"压在 HUD 里"。居中后离上下两边都远。
     // 用 (origin 0.5, 0.5) + vh/2：多行文本也能以自身中心对齐屏幕中心。
     const t = this.add.text(this.vw / 2, this.vh / 2, text, {
-      fontSize: `${18 * S}px`, color: '#ffffff', fontFamily: UI_FONT,
+      fontSize: `${px(18) * S}px`, color: '#ffffff', fontFamily: UI_FONT,
       backgroundColor: '#000000aa', padding: { x: 14 * S, y: 9 * S },
       align: 'center', wordWrap: { width: Math.min(560, (this.vw / S) - 48) * S },
     }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH.toast);

@@ -10,7 +10,7 @@ import type Phaser from 'phaser';
 import { collectEnvDiag, copyText } from '../../dev/envDiag';
 import type { SafeInsets } from '../../layout';
 import { makePanel, textButton, type Panel } from '../widgets';
-import { UI_FONT_MONO } from '../font';
+import { fs as fontPx, UI_FONT_MONO } from '../font';
 import { openCopySheet } from '../copySheet';
 
 export interface EnvDiagPanelDeps {
@@ -56,17 +56,17 @@ export function buildEnvDiagPanel(deps: EnvDiagPanelDeps): Panel {
   // 行数不固定（UA 那行会按屏宽换行），字号必须自适应，否则最后几行会被面板底边切掉。
   // text.height 在创建后才算得准，所以先建后缩：12px 起，塞不下就每档 0.5px 往下调。
   const availCss = panel.h - 44 - 8; // 44 = 标题栏占位
-  let fs = 12;
+  let fpx = 12;
   const body = s.add.text(-panel.w / 2 * S + 14 * S, 0, d.summary, {
-    fontSize: `${fs * S}px`, color: '#d8d2c4',
+    fontSize: `${fontPx(fpx) * S}px`, color: '#d8d2c4',
     fontFamily: UI_FONT_MONO,
     lineSpacing: 3 * S,
     wordWrap: { width: (panel.w - 28) * S },
   });
-  while (fs > 7 && body.height > availCss * S) {
-    fs -= 0.5;
-    body.setFontSize(Math.round(fs * S));
-    body.setLineSpacing(Math.round(fs / 4 * S));
+  while (fpx > 7 && body.height > availCss * S) {
+    fpx -= 0.5;
+    body.setFontSize(Math.round(fontPx(fpx) * S));
+    body.setLineSpacing(Math.round(fontPx(fpx) / 4 * S));
   }
   panel.body.add([body]);
 

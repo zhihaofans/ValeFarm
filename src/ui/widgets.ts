@@ -7,7 +7,7 @@
 // 看起来"面板没撑开、按钮点不中"（0.4.0 真机上踩过）。
 
 import Phaser from 'phaser';
-import { UI_FONT } from './font';
+import { fs, UI_FONT } from './font';
 
 export const UI_DEPTH = {
   hud: 800,
@@ -42,7 +42,7 @@ export function textButton(
   const bg = scene.add.rectangle(0, 0, bw, bh, opts.bg ?? 0x3f7d5a)
     .setStrokeStyle(2 * S, 0xffffff, 0.35);
   const txt = scene.add.text(0, 0, label, {
-    fontSize: `${Math.round((opts.fontSize ?? 18) * S)}px`,
+    fontSize: `${Math.round(fs(opts.fontSize ?? 18) * S)}px`,
     color: opts.fg ?? '#ffffff',
     fontFamily: UI_FONT,
   }).setOrigin(0.5);
@@ -168,7 +168,7 @@ export function makePanel(scene: Phaser.Scene, title: string, onClose?: () => vo
   bg.on('pointerup', () => { /* 吞掉 */ });
 
   const titleTxt = scene.add.text(0, -PANEL_H / 2 + 22 * S, title, {
-    fontSize: `${Math.round(22 * S)}px`, color: '#f2e06a', fontFamily: UI_FONT, fontStyle: 'bold',
+    fontSize: `${Math.round(fs(22) * S)}px`, color: '#f2e06a', fontFamily: UI_FONT, fontStyle: 'bold',
   }).setOrigin(0.5);
 
   // ✕ 加大触区（48×44 CSS），并放到最高层，避免被 body 内容盖住
@@ -211,7 +211,7 @@ export const PANEL_BODY_H = 360 - 44;
 export function label(scene: Phaser.Scene, x: number, y: number, text: string, opts: { size?: number; color?: string; bold?: boolean } = {}): Phaser.GameObjects.Text {
   const S = uiScale(scene);
   return scene.add.text(x * S, y * S, text, {
-    fontSize: `${Math.round((opts.size ?? 17) * S)}px`,
+    fontSize: `${Math.round(fs(opts.size ?? 17) * S)}px`,
     color: opts.color ?? '#e8e4dc',
     fontFamily: UI_FONT,
     fontStyle: opts.bold ? 'bold' : 'normal',

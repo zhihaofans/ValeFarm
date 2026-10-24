@@ -12,6 +12,23 @@
 // ⚠️ 像素字体在 12px / 24px 最清晰；非整数倍字号会有轻微抗锯齿。
 //    目前 UI 字号（12~19px × dpr）没有强制对齐，先看观感再决定要不要收拢字号。
 
+/**
+ * 全局字号缩放系数。
+ *
+ * 为什么需要：这套像素字的设计尺寸是 12px，ASCII 只占 8px（'i'/'l' 更只有 4px），
+ * 真机上英文明显偏小、不好认。但字体文件不能"放大"——只能改 CSS 字号。
+ * 所以集中一个系数，改这一处全项目生效（label / textButton / HUD / 飘字都走它）。
+ *
+ * ⚠️ 像素字在 12/24px（设计尺寸整数倍）最锐利；1.18 倍会带来轻微抗锯齿，
+ *    但可读性提升明显。若以后要大改，更彻底的做法是换 16px 变体并把字号对齐到 16/32。
+ */
+export const FONT_SCALE = 1.18;
+
+/** 把设计字号换算成实际 CSS 字号（四舍五入，避免半像素） */
+export function fs(cssSize: number): number {
+  return Math.round(cssSize * FONT_SCALE);
+}
+
 /** 常规 UI 字体栈：像素字优先，回退系统黑体（缺字体时界面不能崩） */
 export const UI_FONT = '"ValePixel", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif';
 

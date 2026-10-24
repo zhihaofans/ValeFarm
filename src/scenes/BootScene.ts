@@ -1,7 +1,7 @@
 // Boot：加载图集 → 读档（IndexedDB，normalize 校验）→ 进主场景。
 
 import Phaser from 'phaser';
-import { UI_FONT } from '../ui/font';
+import { fs, UI_FONT } from '../ui/font';
 import { loadSaveJson } from '../core/storage';
 import { normalizeWorld } from '../core/save';
 import type { World } from '../core/types';
@@ -15,7 +15,7 @@ export class BootScene extends Phaser.Scene {
     const { width, height } = this.scale;
     this.add.rectangle(width / 2, height / 2, width, height, 0x1a2218);
     this.add.text(width / 2, height / 2, 'Loading…', {
-      fontSize: '20px', color: '#e8e4dc', fontFamily: UI_FONT,
+      fontSize: `${fs(20)}px`, color: '#e8e4dc', fontFamily: UI_FONT,
     }).setOrigin(0.5);
 
     // 全部本地资源，无外链 —— 断网时只要 SW 缓存了这些文件就能进游戏
