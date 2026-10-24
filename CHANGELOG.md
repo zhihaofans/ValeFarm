@@ -3,6 +3,14 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
+## 0.9.8 — build 32
+
+- **技术债清理（无玩法改动）**：
+  - `UIScene` 从 **1304 行降到 909 行（-30%）**：面板按职责拆到 `src/ui/panels/`（环境诊断 / 物品栏 / 快捷栏 / 杂货铺 / 晨报+睡觉 / 对话+送礼 / 系统菜单）。每个拆分都是纯搬家，交互与文案零改动；HUD、摇杆、相机这类与主循环耦合的部分保留在场景里。
+  - **Phaser 切成独立 chunk**（`phaser-*.js`）：以后改游戏逻辑时 phaser 那份哈希不变，老玩家只重下小包；首屏两个 chunk 并行下载。`tools/postbuild.js` 本来就是扫 `docs/assets/*.js` 注入预缓存，多分片自动覆盖。
+- **工具**：`npm run verify` = `tsc --noEmit && vitest run`，一条命令看清"类型 + 单测"是否全绿。
+- 单测维持 **122 条**全绿。
+
 ## 0.9.7 — build 31
 
 - **修昏倒文案假账**：金币不足 50 时，晨报仍写「还丢了 50 金币」。现在按**实际扣到的钱**说：0 金币 → 「身上没有金币，没被罚」；1~49 金币 → 「身上的 N 金币全掉光了」；≥50 → 维持原句。行为不变（金币仍夹在 0 以上），单测 121 → 122。
