@@ -27,6 +27,16 @@
   <link rel="apple-touch-startup-image" href="splash/splash-ipad-1536x2048.png"
         media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" />
   <style>
+    /* 像素中文字体（Ark Pixel 12px，OFL-1.1，自托管，零外链）
+       许可原文：fonts/OFL-ark-pixel-font.txt
+       font-display: swap —— 字体没到时先用回退字体渲染，绝不阻塞首屏。 */
+    @font-face {
+      font-family: 'ValePixel';
+      src: url('fonts/vale-pixel.woff2') format('woff2');
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
     /* iOS 上 height:100% 取的是 layout viewport，地址栏收放 / translucent 状态栏会让它
        和真实可视区差一截，底部露一条背景色（用户实拍就是那条黑带）。
        优先级：JS 实测 --app-h > dvh > 100%。JS 那份最准，写不到就退回 dvh。 */
@@ -35,7 +45,7 @@
       height: 100%;
       height: 100dvh;
       background: #1a2218; overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-family: "ValePixel", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
       -webkit-tap-highlight-color: transparent;
       touch-action: none;
       overscroll-behavior: none;

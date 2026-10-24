@@ -4,6 +4,7 @@ import { GameScene } from './scenes/GameScene';
 import { UIScene } from './scenes/UIScene';
 import { initOrientation } from './orientation';
 import { computeLayout, watchViewport } from './layout';
+import { waitPixelFont } from './ui/font';
 
 // 画布不写死 16:9：内部分辨率直接等于视口×dpr，由各场景的相机 zoom 反补。
 // 这样任何比例（16:9 / 19.5:9 / 4:3 / 竖屏）都铺满，且地块不变形 —— 见 src/layout.ts。
@@ -114,9 +115,15 @@ function syncCanvasSize(): void {
 }
 
 window.addEventListener('load', () => {
-  window.__game = new Phaser.Game(config);
-  // 游戏起来之后再补测几帧：此时 #game 已生成，computeLayout 才量得到真实尺寸
-  settleAppHeight();
+  // 先等像素字体就绪再开局：Phaser 的 Text 是"建对象时定字体"，
+  // 字体没到就会拿回退字体画首屏，之后再换得重建所有文本对象。
+  // waitPixelFont 自带 1.5s 超时，等不到就直接用回退字体开局 —— 字体绝不能卡住首屏。
+  void (async () => {
+    await waitPixelFont();
+    window.__game = new Phaser.Game(config);
+    // 游戏起来之后再补测几帧：此时 #game 已生成，computeLayout 才量得到真实尺寸
+    settleAppHeight();
+  })();
 });
 watchViewport(syncCanvasSize);
 

@@ -2,6 +2,7 @@
 // 与 GameScene 单向依赖：只调用其公开方法，不直接改地块。
 
 import Phaser from 'phaser';
+import { UI_FONT } from '../ui/font';
 import { SEASON_NAMES, SEASON_DAYS, FOREST_X } from '../core/config';
 import { CROPS, CROP_ORDER, DECORS, RECIPES } from '../core/data';
 import { countItem, craft } from '../core/economy';
@@ -307,7 +308,7 @@ export class UIScene extends Phaser.Scene {
     // 文字锚点统一 origin(0,0)（左上）：只给 y 起点，垂直位置由 padY 保证，
     // 不再用 fontSize 的倍数去猜（那种猜法在字号一变就会顶到遮挡边）。
     this.dayText = this.add.text(leftPx + pad, ty, '', {
-      fontSize: `${fs * S}px`, color: '#fff8e8', fontFamily: 'sans-serif', fontStyle: 'bold',
+      fontSize: `${fs * S}px`, color: '#fff8e8', fontFamily: UI_FONT, fontStyle: 'bold',
     }).setScrollFactor(0).setDepth(UI_DEPTH.hud + 1)
       .setShadow(0, 1 * S, '#000000', 2 * S, true, true);
 
@@ -318,7 +319,7 @@ export class UIScene extends Phaser.Scene {
       '',
       {
         fontSize: `${(compact ? sub : fs) * S}px`,
-        color: compact ? '#c9a06b' : '#f4ead8', fontFamily: 'sans-serif',
+        color: compact ? '#c9a06b' : '#f4ead8', fontFamily: UI_FONT,
       },
     ).setScrollFactor(0).setDepth(UI_DEPTH.hud + 1);
 
@@ -339,12 +340,12 @@ export class UIScene extends Phaser.Scene {
     this.add.image(coinX, midY, 'ui', UI.coin)
       .setScrollFactor(0).setDepth(UI_DEPTH.hud + 1).setScale((compact ? 0.6 : 0.85) * S).setName('hud-coin');
     this.goldText = this.add.text(coinX + (compact ? 10 * S : 16 * S), ty, '0', {
-      fontSize: `${fs * S}px`, color: '#f2e06a', fontFamily: 'sans-serif',
+      fontSize: `${fs * S}px`, color: '#f2e06a', fontFamily: UI_FONT,
     }).setScrollFactor(0).setDepth(UI_DEPTH.hud + 1);
 
     // 体力条（垂直居中到文字行）
     if (!compact) {
-      this.add.text(energyX - 22 * S, ty, '体', { fontSize: `${sub * S}px`, color: '#e8e4dc', fontFamily: 'sans-serif' })
+      this.add.text(energyX - 22 * S, ty, '体', { fontSize: `${sub * S}px`, color: '#e8e4dc', fontFamily: UI_FONT })
         .setScrollFactor(0).setDepth(UI_DEPTH.hud + 1);
     }
     this.add.rectangle(energyX, midY, barW, (compact ? 12 : 16) * S, 0x000000, 0.5)
@@ -353,7 +354,7 @@ export class UIScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(UI_DEPTH.hud + 2).setOrigin(0, 0.5);
     this.energyBarMaxW = barW - 2 * S;
     this.energyText = this.add.text(energyX + barW / 2, midY, '', {
-      fontSize: `${(compact ? 10 : 13) * S}px`, color: '#ffffff', fontFamily: 'sans-serif',
+      fontSize: `${(compact ? 10 : 13) * S}px`, color: '#ffffff', fontFamily: UI_FONT,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH.hud + 3);
   }
 
@@ -466,7 +467,7 @@ export class UIScene extends Phaser.Scene {
     this.add.image(actX, actY, 'ui', UI.hoe_up)
       .setScrollFactor(0).setDepth(UI_DEPTH.buttons).setScale((actR / 52) * 1.5);
     this.add.text(actX, actY + actR * 0.62, '互动', {
-      fontSize: `${Math.round(actR * 0.34)}px`, color: '#ffffff', fontFamily: 'sans-serif',
+      fontSize: `${Math.round(actR * 0.34)}px`, color: '#ffffff', fontFamily: UI_FONT,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH.buttons);
     // 命中区比视觉大一圈（手指粗），但不越过屏幕右边
     const actZone = this.add.circle(actX, actY, actR * 1.12, 0xffffff, 0.001)
@@ -486,10 +487,10 @@ export class UIScene extends Phaser.Scene {
       .setStrokeStyle(2 * S, 0xc9a06b, 0.85);
     this.seedIcon = this.add.image(-slot * 0.12, -slot * 0.04, 'ui', UI.radish).setScale(slot / 64);
     this.seedText = this.add.text(slot * 0.22, slot * 0.16, '', {
-      fontSize: `${Math.round(slot * 0.28)}px`, color: '#f4ead8', fontFamily: 'sans-serif',
+      fontSize: `${Math.round(slot * 0.28)}px`, color: '#f4ead8', fontFamily: UI_FONT,
     }).setOrigin(0.5);
     const hint = this.add.text(0, -slot / 2 - 9 * S, '快捷', {
-      fontSize: `${Math.round(slot * 0.2)}px`, color: '#c9a06b', fontFamily: 'sans-serif',
+      fontSize: `${Math.round(slot * 0.2)}px`, color: '#c9a06b', fontFamily: UI_FONT,
     }).setOrigin(0.5);
     this.seedBtn.add([sbBg, this.seedIcon, this.seedText, hint]);
     this.seedBtn.setInteractive(
@@ -571,7 +572,7 @@ export class UIScene extends Phaser.Scene {
       .setStrokeStyle(3 * S, 0xc9a06b, 1).setInteractive();
     box.on('pointerup', () => { /* 吞掉点击，别穿透到下面的按钮 */ });
     const msg = this.add.text(cx, cy - 18 * S, text, {
-      fontSize: `${15 * S}px`, color: '#f4ead8', fontFamily: 'sans-serif',
+      fontSize: `${15 * S}px`, color: '#f4ead8', fontFamily: UI_FONT,
       align: 'center', wordWrap: { width: boxW - 32 * S },
     }).setOrigin(0.5);
     // 按钮**手工建**，不用 textButton：那个返回的 Container 位置在 add 进另一个
@@ -582,7 +583,7 @@ export class UIScene extends Phaser.Scene {
     const btnBg = this.add.rectangle(cx, btnY, btnW, btnH, 0x3f7d5a)
       .setStrokeStyle(2 * S, 0xffffff, 0.35).setInteractive();
     const btnTxt = this.add.text(cx, btnY, '知道了', {
-      fontSize: `${16 * S}px`, color: '#ffffff', fontFamily: 'sans-serif',
+      fontSize: `${16 * S}px`, color: '#ffffff', fontFamily: UI_FONT,
     }).setOrigin(0.5);
     const close = () => this.dismissTip();
     btnBg.on('pointerdown', close);
@@ -608,7 +609,7 @@ export class UIScene extends Phaser.Scene {
     // 还容易被灵动岛那条深色带看着像"压在 HUD 里"。居中后离上下两边都远。
     // 用 (origin 0.5, 0.5) + vh/2：多行文本也能以自身中心对齐屏幕中心。
     const t = this.add.text(this.vw / 2, this.vh / 2, text, {
-      fontSize: `${18 * S}px`, color: '#ffffff', fontFamily: 'sans-serif',
+      fontSize: `${18 * S}px`, color: '#ffffff', fontFamily: UI_FONT,
       backgroundColor: '#000000aa', padding: { x: 14 * S, y: 9 * S },
       align: 'center', wordWrap: { width: Math.min(560, (this.vw / S) - 48) * S },
     }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH.toast);

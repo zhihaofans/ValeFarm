@@ -161,6 +161,17 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 
 ---
 
+## 4.5 字体与许可
+
+- UI 字体统一走 [src/ui/font.ts](src/ui/font.ts) 的 `UI_FONT` / `UI_FONT_MONO`，**不要在面板里写死 `sans-serif`**，否则会出现"有的地方像素字、有的地方系统字"。
+- 字体是 **Ark Pixel 12px proportional zh_hans（OFL-1.1）**，文件 `public/fonts/vale-pixel.woff2`（约 535 KB），许可原文 `public/fonts/OFL-ark-pixel-font.txt`。
+- 三条铁律：
+  1. **只用开源免费授权字体**（OFL/MIT 等），商用字体一律不进仓库；
+  2. **自托管**，不加任何 CDN / 外链（断网要能用）；
+  3. 字体文件必须进 SW 预缓存 —— [tools/postbuild.js](tools/postbuild.js) 会把 `docs/fonts/*` 一起注入 `ASSETS` 并计入 `CACHE_TAG`。
+- 首屏等字体：`main.ts` 在 `new Phaser.Game()` 之前 `await waitPixelFont()`（自带 1.5s 超时）。Phaser 的 Text 是"建对象时定字体"，字体没到会先用回退字体画，之后改就得重建对象。
+- ⚠️ 像素字体在 12px / 24px 最清晰，非整数倍字号会有轻微抗锯齿；目前 UI 字号没强制对齐，观感优先。
+
 ## 5. 踩坑清单（真机才暴露的问题）
 
 普通浏览器看不出来，只有真机 / PWA 里才复现。按"现象 → 根因 → 修法"记录。

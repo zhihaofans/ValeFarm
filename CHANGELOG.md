@@ -3,6 +3,18 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
+## 未发布（0.9.11 待定）
+
+- **研究（D2）第一步：core 与存档**。把多余产出"研究掉"换知识点，知识点可兑换已有机制（铜锄头 40 / 铜洒水壶 60 / 体力上限 +10 于 50）—— 给后期一条不依赖金币的成长线。
+  - `World.knowledge`、`World.unlocked`；`SAVE_FMT` 升到 **6**，旧档回落 0 与空数组。
+  - 单测 130 → 141（`research.test.ts` 11 条：分值白名单、消耗与累加、兑换校验、体力上限补现体力、存档往返、脏档过滤）。
+  - **界面还没做**（制作台里的研究/兑换），玩家暂时摸不到。
+- **像素中文字体（开源免费）**：换成 **方舟像素字体 Ark Pixel 12px（OFL-1.1）**，自托管 `public/fonts/vale-pixel.woff2`（约 535 KB），许可原文随仓库提交。
+  - 新增 `src/ui/font.ts` 统一 `UI_FONT`，全项目 18 处 `fontFamily` 收口，不再散落 `sans-serif`。
+  - `main.ts` 在开 Game 之前 `await waitPixelFont()`（1.5s 超时兜底），避免首屏用回退字体画一遍。
+  - `tools/postbuild.js` 把 `docs/fonts/*` 一起注入 SW 预缓存并计入 `CACHE_TAG`，断网也有像素字。
+  - README 的"不含第三方素材"改为如实说明：唯一外部素材是 OFL 字体。
+
 ## 0.9.10 — build 34
 
 - **测试与护栏（无玩法/界面改动）**：

@@ -10,6 +10,7 @@ import type Phaser from 'phaser';
 import { collectEnvDiag, copyText } from '../../dev/envDiag';
 import type { SafeInsets } from '../../layout';
 import { makePanel, textButton, type Panel } from '../widgets';
+import { UI_FONT_MONO } from '../font';
 import { openCopySheet } from '../copySheet';
 
 export interface EnvDiagPanelDeps {
@@ -58,7 +59,7 @@ export function buildEnvDiagPanel(deps: EnvDiagPanelDeps): Panel {
   let fs = 12;
   const body = s.add.text(-panel.w / 2 * S + 14 * S, 0, d.summary, {
     fontSize: `${fs * S}px`, color: '#d8d2c4',
-    fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+    fontFamily: UI_FONT_MONO,
     lineSpacing: 3 * S,
     wordWrap: { width: (panel.w - 28) * S },
   });

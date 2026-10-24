@@ -7,6 +7,7 @@
 // 看起来"面板没撑开、按钮点不中"（0.4.0 真机上踩过）。
 
 import Phaser from 'phaser';
+import { UI_FONT } from './font';
 
 export const UI_DEPTH = {
   hud: 800,
@@ -43,7 +44,7 @@ export function textButton(
   const txt = scene.add.text(0, 0, label, {
     fontSize: `${Math.round((opts.fontSize ?? 18) * S)}px`,
     color: opts.fg ?? '#ffffff',
-    fontFamily: 'sans-serif',
+    fontFamily: UI_FONT,
   }).setOrigin(0.5);
   const c = scene.add.container(x * S, y * S, [bg, txt]);
   // 若当前正有面板打开，新建的按钮必须压在遮罩之上，否则会被半透明遮罩拦住点击
@@ -167,7 +168,7 @@ export function makePanel(scene: Phaser.Scene, title: string, onClose?: () => vo
   bg.on('pointerup', () => { /* 吞掉 */ });
 
   const titleTxt = scene.add.text(0, -PANEL_H / 2 + 22 * S, title, {
-    fontSize: `${Math.round(22 * S)}px`, color: '#f2e06a', fontFamily: 'sans-serif', fontStyle: 'bold',
+    fontSize: `${Math.round(22 * S)}px`, color: '#f2e06a', fontFamily: UI_FONT, fontStyle: 'bold',
   }).setOrigin(0.5);
 
   // ✕ 加大触区（48×44 CSS），并放到最高层，避免被 body 内容盖住
@@ -212,7 +213,7 @@ export function label(scene: Phaser.Scene, x: number, y: number, text: string, o
   return scene.add.text(x * S, y * S, text, {
     fontSize: `${Math.round((opts.size ?? 17) * S)}px`,
     color: opts.color ?? '#e8e4dc',
-    fontFamily: 'sans-serif',
+    fontFamily: UI_FONT,
     fontStyle: opts.bold ? 'bold' : 'normal',
     wordWrap: { width: (640 - 90) * S },
     lineSpacing: 6 * S,

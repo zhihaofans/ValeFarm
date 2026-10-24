@@ -21,6 +21,10 @@
 
 全部美术与音效由脚本程序化生成，不含第三方游戏素材。
 
+**唯一的外部素材是字体**：[方舟像素字体 Ark Pixel 12px](https://github.com/TakWolf/ark-pixel-font)
+（SIL Open Font License 1.1，可免费商用），自托管在 [public/fonts/](public/fonts/)，
+许可原文随文件一起提交。没有引入任何商业字体或 CDN 外链。
+
 ## 快速开始
 
 ```bash

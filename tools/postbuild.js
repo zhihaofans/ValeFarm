@@ -16,7 +16,19 @@ const DIST = process.env.VALE_OUT
 const swPath = resolve(DIST, 'sw.js');
 
 const assets = readdirSync(resolve(DIST, 'assets')).filter((f) => /\.(js|css)$/.test(f)).sort();
-const extra = assets.map((f) => `  './assets/${f}',`);
+// 字体也必须在预缓存里：断网时字体没缓存 → 首屏退回系统字体（观感直接不一样）
+const fontDir = resolve(DIST, 'fonts');
+const fonts = (() => {
+  try {
+    return readdirSync(fontDir).filter((f) => /\.(woff2?|otf|ttf)$/.test(f)).sort();
+  } catch {
+    return [];
+  }
+})();
+const extra = [
+  ...assets.map((f) => `  './assets/${f}',`),
+  ...fonts.map((f) => `  './fonts/${f}',`),
+];
 
 let sw = readFileSync(swPath, 'utf-8');
 if (!sw.includes('const ASSETS = [')) {
@@ -29,6 +41,7 @@ writeFileSync(swPath, sw);
 // 内容哈希：JS/CSS 文件名本身带 hash，再叠上 index.html / version.json / manifest
 const h = createHash('sha1');
 for (const f of assets) h.update(readFileSync(resolve(DIST, 'assets', f)));
+for (const f of fonts) h.update(readFileSync(resolve(fontDir, f)));
 for (const f of ['index.html', 'version.json', 'manifest.json']) {
   try { h.update(readFileSync(resolve(DIST, f))); } catch { /* 缺文件跳过 */ }
 }
@@ -41,4 +54,4 @@ if (!/const CACHE_TAG = '[^']*';/.test(sw)) {
 sw = sw.replace(/const CACHE_TAG = '[^']*';/, `const CACHE_TAG = '${tag}';`);
 writeFileSync(swPath, sw);
 
-console.log(`sw.js 预缓存清单注入 ${extra.length} 个构建产物 · CACHE_TAG=${tag}`);
+console.log(`sw.js 预缓存清单注入 ${extra.length} 项（assets ${assets.length} + fonts ${fonts.length}） · CACHE_TAG=${tag}`);
