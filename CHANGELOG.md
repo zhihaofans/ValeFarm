@@ -3,7 +3,7 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
-## 未发布（0.9.9 待定）
+## 0.9.9 — build 33
 
 - **修环境诊断的复制按钮**：iOS（尤其 PWA 独立窗口）经常直接拒绝剪贴板，过去只会弹一句"复制失败"。
   - `copyText` 现在按"同步优先"排三条路：隐藏 textarea + `execCommand` → `contenteditable` + Range 选区 + `execCommand` → Clipboard API（最后才 await，避免丢用户手势）。
