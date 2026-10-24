@@ -10,6 +10,7 @@ import type Phaser from 'phaser';
 import { collectEnvDiag, copyText } from '../../dev/envDiag';
 import type { SafeInsets } from '../../layout';
 import { makePanel, textButton, type Panel } from '../widgets';
+import { openCopySheet } from '../copySheet';
 
 export interface EnvDiagPanelDeps {
   scene: Phaser.Scene;
@@ -73,10 +74,18 @@ export function buildEnvDiagPanel(deps: EnvDiagPanelDeps): Panel {
   // 注意坐标系：✕ 是挂在 root 上（原点=面板中心），这里挂在 body 上
   // （原点=标题栏下沿，即面板顶下 44px 处），所以标题栏行在 body 内是 y=-22。
   const copy = textButton(s, panel.w / 2 - 80, -22, 44, 44, '⧉', () => {
+    // 自动复制被系统拦下时不要只弹一句"失败"：把文本摊成可选中的框，用户长按全选也能拿走
+    const fallback = () => openCopySheet('诊断信息', d.summary);
     void copyText(d.summary).then((ok) => {
-      deps.toast(ok ? '已复制，粘贴发给开发者就行' : '复制失败，请直接截图发来');
+      if (ok) {
+        deps.toast('已复制，粘贴发给开发者就行');
+        return;
+      }
+      deps.toast('系统拦下了自动复制，已弹出可手动复制的面板');
+      fallback();
     }).catch(() => {
-      deps.toast('复制失败，请直接截图发来');
+      deps.toast('系统拦下了自动复制，已弹出可手动复制的面板');
+      fallback();
     });
   }, { bg: 0x5b5044 });
   panel.body.add([copy]);

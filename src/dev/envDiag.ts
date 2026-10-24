@@ -154,16 +154,25 @@ export function collectEnvDiag(input: EnvDiagInput): EnvDiag {
   };
 }
 
-/** 复制到剪贴板。iOS 需要 https + 用户手势上下文，失败时返回 false 让调用方提示截图 */
+/**
+ * 复制到剪贴板。失败返回 false，由调用方提供"手动复制"兜底。
+ *
+ * 为什么这么啰嗦：iOS（尤其 PWA 独立窗口）对剪贴板非常严格 ——
+ *   1) `navigator.clipboard.writeText` 常有权限/焦点问题，且 await 之后就丢掉"用户手势"上下文；
+ *   2) `document.execCommand('copy')` 必须在手势同步栈里执行，且**选区要落在可编辑元素内**；
+ *   3) 某些版本对 1px/离屏 textarea 也不认，得换成 contenteditable + Range 选区。
+ * 所以这里按"同步能做完的优先做"排三条路，全程不让出事件循环。
+ */
 export async function copyText(text: string): Promise<boolean> {
-  // iOS PWA 里 Clipboard API 经常拒绝；而 execCommand 必须在**手势同步栈**里执行，
-  // 先 await clipboard 失败再 fallback 时手势可能已经丢了。所以先同步走旧方案。
+  const clean = (node: HTMLElement | null): void => { node?.remove(); };
+
+  // 路线 1：隐藏 textarea + execCommand（桌面 Chrome/Safari、Android 大多可行）
   let ta: HTMLTextAreaElement | null = null;
   try {
     ta = document.createElement('textarea');
     ta.value = text;
     ta.setAttribute('readonly', '');
-    // 不用 top:-9999 的离屏写法：iOS Safari 对不可见/离屏 textarea 的 execCommand 更严格。
+    // 不用 top:-9999 的离屏写法：iOS Safari 对不可见/离屏元素更严格
     ta.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0.01;'
       + 'font-size:16px;border:0;padding:0;z-index:2147483647;';
     document.body.appendChild(ta);
@@ -172,11 +181,35 @@ export async function copyText(text: string): Promise<boolean> {
     ta.setSelectionRange(0, text.length);
     if (document.execCommand('copy')) return true;
   } catch {
-    // 落到 Clipboard API
+    // 继续下一条
   } finally {
-    ta?.remove();
+    clean(ta);
   }
 
+  // 路线 2：contenteditable + Range 选区 + execCommand（iOS 上比 textarea 更容易被接受）
+  let box: HTMLDivElement | null = null;
+  try {
+    box = document.createElement('div');
+    box.setAttribute('contenteditable', 'true');
+    box.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0.01;'
+      + 'overflow:hidden;font-size:16px;z-index:2147483647;';
+    box.textContent = text;
+    document.body.appendChild(box);
+    const range = document.createRange();
+    range.selectNodeContents(box);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+    box.focus();
+    if (document.execCommand('copy')) return true;
+    sel?.removeAllRanges();
+  } catch {
+    // 继续下一条
+  } finally {
+    clean(box);
+  }
+
+  // 路线 3：Clipboard API（https + 用户授权才有戏；放到最后，避免先偶发成功又偶发失败）
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
