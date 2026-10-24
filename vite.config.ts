@@ -51,10 +51,22 @@ export default defineConfig({
     assetsInlineLimit: 0,
     // phaser 体积大，单独分包并提示体积
     chunkSizeWarningLimit: 1600,
-    // 产物直接落在 docs/：GitHub Pages 把 /docs 设为发布源即可，仓库里
-    // 「源码 + 可部署文件」是一体的，不用另开 gh-pages 分支。
+    // 把 Phaser 切到独立 chunk：
+    //   1) 改游戏逻辑时 index-*.js 会换 hash，但 phaser-*.js 不变 —— 老玩家只重下小包
+    //   2) 首屏两个 chunk 并行下载，比单块 1.5MB 更容易压住白屏时间
+    // 注意：tools/postbuild.js 是扫 docs/assets/*.js 注入预缓存清单的，多分片不需要改它。
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          phaser: ['phaser'],
+        },
+      },
+    },
+    // 产物落在 docs/：**本地产物目录**（已 .gitignore，不入库），
+    // 线上由 GitHub Actions 构建后用 actions/deploy-pages 直接部署。
+    // 本地拿它跑 preview / test:e2e / package。
     //
-    // docs/ 是**纯产物目录**，人写的文档都在 dev-docs/，两者不混。
+    // docs/ 是纯产物目录，人写的文档都在 dev-docs/，两者不混。
     // 因此这里可以让 vite 直接清空产物目录（emptyOutDir: true，默认行为），
     // 由 tools/build.mjs 在 build 前再整目录清一次，保证不会残留上一次的 hash 资源。
     outDir: 'docs',
