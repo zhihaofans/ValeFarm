@@ -3,7 +3,7 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
-## 未发布（0.9.6 待定）
+## 0.9.6 — build 30
 
 - **挖矿改成"手持 + 耐久"**：木镐必须先在快捷栏「道具」页拿到手上才能挖；每挖一下扣 1 点耐久，耐久 30 用尽当次损坏（物品从背包移除），回制作台重做一把即回满。三道门槛的失败文案各不相同（没镐 / 没拿在手上 / 已用坏）。
 - **耐久做成通用物品属性（仿 Minecraft）**：新增 `data.ts` 的 `TOOLS`（`{ id, name, maxDur }`）与 `core/tools.ts`（`toolDur / toolUsable / damageTool / restoreTool / toolRatio`）。以后加斧头、钓竿只要在 `TOOLS` 加一行，其余代码不用改。
