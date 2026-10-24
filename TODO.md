@@ -127,17 +127,15 @@
 
 ---
 
-## P2 · 技术债（不紧急，但越来越贵）
+## P2 · 技术债（部分已清零）
 
-| 项 | 现状 | 建议 | 成本 |
-|---|---|---|---|
-| `UIScene.ts` 1210 行 | 所有面板挤一个文件，`GameScene.ts` 也已 791 行 | 按面板拆 `ui/panels/*.ts`，先抽 `makePanel` 的样板与公用行渲染 | 中 |
-| 打包 1.55 MB（gzip 367 KB） | Phaser 占大头 | Phaser 自定义构建，只保留 Arcade + WebGL；或懒加载 Phaser | 中 |
-| e2e 仍有 60 处 `waitForTimeout` | 0.9.1 只修了三条"等晨报"的脆弱点 | 逐步改成 `waitForFunction(条件)` / `expect.poll`，优先改断言紧跟在 sleep 后面的 | 中 |
-| `index-*.js` 单块 1.5 MB | 一个 chunk 到底 | 用 `build.rollupOptions.output.manualChunks` 把 phaser 单独切出来（首屏可并行下载 + 缓存更稳） | 小 |
-| 音效全合成 | `core/audio.ts` WebAudio 合成 | 若想换真实音效：改成播放采样，注意离线预缓存清单要一起加 | 中 |
-
----
+| 项 | 现状 | 结论 |
+|---|---|---|
+| `UIScene` 挤成一个大文件 | 1304 → **909 行**；面板按职责拆到 `src/ui/panels/`（环境诊断 / 物品栏 / 快捷栏 / 杂货铺 / 晨报+睡觉 / 对话+送礼 / 系统菜单） | ✅ **已完成**（v0.9.8）。HUD、摇杆、相机与主循环耦合，保留在场景内 |
+| 打包单块 1.55 MB | 已切 `phaser-*.js`（1.48 MB，哈希稳定）+ `index-*.js`（~87 KB）；0.9.9 实测 phaser 哈希未变 → 老玩家只重下 87 KB | ✅ **已完成**（v0.9.8）。离线验证通过：断网重开可玩（v0.9.9 真机） |
+| Phaser 自定义构建（只留 Arcade+WebGL） | 未做 | 需要 Phaser 自己的离线构建链，裁错内核风险高；**暂不做** |
+| e2e 里 60 处 `waitForTimeout` | 未动 | 与"给新功能补 e2e"重叠，建议并到 P0-① 一起做 |
+| 音效全合成 | `core/audio.ts` WebAudio 合成 | 想换真实音效需要素材与离线预缓存改动；**暂不做** |
 
 ## P2 · 已知未修的 bug
 
