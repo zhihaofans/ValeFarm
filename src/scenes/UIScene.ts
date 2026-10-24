@@ -22,7 +22,7 @@ import { UI } from '../core/generated/ui.frames';
 import { TILE } from '../core/generated/tiles.frames';
 import { Joystick } from '../ui/joystick';
 import { UI_DEPTH, label, makePanel, modalCenterY, textButton, uiScale, type Panel } from '../ui/widgets';
-import { collectEnvDiag, copyText } from '../dev/envDiag';
+import { buildEnvDiagPanel } from '../ui/panels/envDiagPanel';
 import { currentSafeInsets, isStandaloneApp, NO_INSETS, uiInsets, type SafeInsets } from '../layout';
 import type { CropId, World } from '../core/types';
 import type { GameScene } from './GameScene';
@@ -1239,62 +1239,26 @@ export class UIScene extends Phaser.Scene {
    *   - 游戏**最后按什么排版**（最终 safe、HUD 高度、首行文字顶边）
    * env() 因故失效时会是全 0，那不代表没遮挡；真正决定画面的是后者。
    */
+  /**
+   * 环境诊断面板。
+   *
+   * 面板本体已抽到 ui/panels/envDiagPanel.ts（UIScene 拆分第一步）：
+   * 这里只负责「置位/复位面板状态 + 把 UI 的实测数值交给它」。
+   */
   private openEnvDiag(): void {
     this.panelOpen = true;
     this.pauseGame(true);
-    const panel = makePanel(this, '环境诊断', () => {
-      this.panelOpen = false; this.pauseGame(false); this.activePanel = null;
+    const panel = buildEnvDiagPanel({
+      scene: this,
+      dpr: this.DP,
+      safe: this.safe,
+      hudHCss: this.hudHCss,
+      textTopCss: this.dayText.y / this.DP,
+      toast: (t) => this.toast(t),
+      onClose: () => { this.panelOpen = false; this.pauseGame(false); this.activePanel = null; },
     });
     this.activePanel = panel;
     this.placePanel(panel);
-    const S = this.DP;
-
-    // root 的第一个子对象就是面板外点击区（透明 Rectangle）
-    const shade = panel.root.list[0] as Phaser.GameObjects.Rectangle | undefined;
-    const shadeBounds = shade?.getBounds();
-
-    const d = collectEnvDiag({
-      safe: this.safe,
-      hudHCss: this.hudHCss,
-      textTopCss: this.dayText.y / S,
-      renderScale: S,
-      shadeTopCss: shadeBounds ? shadeBounds.y / S : undefined,
-      shadeHCss: shadeBounds ? shadeBounds.height / S : undefined,
-    });
-
-    // 取消 body 的「640 基准等比缩放」：那一套是为了让按横屏设计的按钮在竖屏不溢出，
-    // 诊断面板是窄排版的文本，缩到 0.58 就小得读不了了。
-    panel.body.setScale(1);
-
-    // 行数不固定（UA 那行会按屏宽换行），字号必须自适应，否则最后几行会被面板底边切掉。
-    // text.height 在创建后才算得准，所以先建后缩：12px 起，塞不下就每档 0.5px 往下调。
-    const availCss = panel.h - 44 - 8; // 44 = 标题栏占位
-    let fs = 12;
-    const body = this.add.text(-panel.w / 2 * S + 14 * S, 0, d.summary, {
-      fontSize: `${fs * S}px`, color: '#d8d2c4',
-      fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
-      lineSpacing: 3 * S,
-      wordWrap: { width: (panel.w - 28) * S },
-    });
-    while (fs > 7 && body.height > availCss * S) {
-      fs -= 0.5;
-      body.setFontSize(Math.round(fs * S));
-      body.setLineSpacing(Math.round(fs / 4 * S));
-    }
-    panel.body.add([body]);
-
-    // 复制按钮做标题栏里的一个图标位，不放正文底部 ——
-    // 正文行数不确定（UA 会换行），放底部迟早和最后一行叠上。
-    // 注意坐标系：✕ 是挂在 root 上（原点=面板中心），这里挂在 body 上
-    // （原点=标题栏下沿，即面板顶下 44px 处），所以标题栏行在 body 内是 y=-22。
-    const copy = textButton(this, panel.w / 2 - 80, -22, 44, 44, '⧉', () => {
-      void copyText(d.summary).then((ok) => {
-        this.toast(ok ? '已复制，粘贴发给开发者就行' : '复制失败，请直接截图发来');
-      }).catch(() => {
-        this.toast('复制失败，请直接截图发来');
-      });
-    }, { bg: 0x5b5044 });
-    panel.body.add([copy]);
   }
 
   floatText(fx: number, fy: number, text: string): void {
