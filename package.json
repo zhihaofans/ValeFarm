@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && node tools/build.mjs",
     "preview": "vite preview --port 4173",
     "typecheck": "tsc --noEmit",
+    "verify": "tsc --noEmit && vitest run",
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",

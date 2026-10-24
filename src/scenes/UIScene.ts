@@ -5,13 +5,11 @@ import Phaser from 'phaser';
 import { SEASON_NAMES, SEASON_DAYS, FOREST_X } from '../core/config';
 import { CROPS, CROP_ORDER, DECORS, QUALITY, RECIPES, TOOL_UPGRADES, dailySeedSpecial, itemName } from '../core/data';
 import {
-  buySeed, buyToolUpgrade, countItem, craft, cropEntries, decorEntries, oreEntries,
+  buySeed, buyToolUpgrade, countItem, craft, cropEntries, oreEntries,
   sellAllCrops, sellAllOres, sellCrop, sellOre, seasonSeeds,
 } from '../core/economy';
 import { giveGift, npcDef, talk, tierName, tierOf } from '../core/npc';
 import { buyDecor } from '../core/decor';
-import { toolDur } from '../core/tools';
-import { toolMaxDur } from '../core/data';
 import { ratingSummary } from '../core/rating';
 import { marketTip, sellMultiplier } from '../core/market';
 import { exportSave, importSave } from '../core/save';
@@ -24,6 +22,7 @@ import { Joystick } from '../ui/joystick';
 import { UI_DEPTH, label, makePanel, modalCenterY, textButton, uiScale, type Panel } from '../ui/widgets';
 import { buildEnvDiagPanel } from '../ui/panels/envDiagPanel';
 import { buildInventoryPanel } from '../ui/panels/inventoryPanel';
+import { buildQuickbarPanel } from '../ui/panels/quickbarPanel';
 import { currentSafeInsets, isStandaloneApp, NO_INSETS, uiInsets, type SafeInsets } from '../layout';
 import type { CropId, World } from '../core/types';
 import type { GameScene } from './GameScene';
@@ -813,97 +812,30 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * 快捷栏选择器：点右下角槽位打开。
-   *
-   * 为什么改成三个页签：种子最多 6 种、道具 2 种、装饰 6 件，全塞一列会把内容顶出面板
-   * （面板可用高度约 316 CSS px）。页签和商店面板是同一套做法，不新造结构。
-   */
+  /** 快捷栏选择器（面板本体在 ui/panels/quickbarPanel.ts） */
   private openQuickbar(): void {
     if (this.panelOpen) return;
     this.panelOpen = true;
     this.pauseGame(true);
-    const panel = makePanel(this, '快捷栏', () => {
-      this.panelOpen = false; this.pauseGame(false); this.activePanel = null;
+    const panel = buildQuickbarPanel({
+      scene: this,
+      world: this.gameScene.world,
+      currentItem: this.currentQuickItem,
+      onSelect: (id) => this.applyQuickItem(id),
+      onClose: () => { this.panelOpen = false; this.pauseGame(false); this.activePanel = null; },
     });
     this.activePanel = panel;
     this.placePanel(panel);
-
-    let tab: 'seed' | 'item' | 'decor' = 'seed';
-    const render = (): void => {
-      panel.body.removeAll(true);
-      const w = this.gameScene.world;
-      const mk = (text: string, t: 'seed' | 'item' | 'decor', x: number) =>
-        textButton(this, x, 8, 100, 34, text, () => { tab = t; render(); },
-          { bg: tab === t ? 0x3f7d5a : 0x5b5044, fontSize: 15 });
-      panel.body.add([mk('种子', 'seed', -180), mk('道具', 'item', -60), mk('装饰', 'decor', 60)]);
-      if (tab === 'seed') this.renderQuickSeeds(panel, w);
-      else if (tab === 'item') this.renderQuickItems(panel, w);
-      else this.renderQuickDecor(panel, w);
-    };
-    render();
   }
 
-  /** 选中快捷物品（种子决定播种；装饰决定"摆什么"） */
-  private selectQuickItem(panel: Panel, id: string): void {
+  /** 把选中的快捷物品落到场景状态上（种子决定播种；装饰决定"摆什么"） */
+  private applyQuickItem(id: string): void {
     this.currentQuickItem = id;
     this.currentSeedCrop = id.startsWith('seed:') ? id.slice(5) as CropId : null;
     this.syncSeedBtn();
     SFX.ui();
-    panel.close();
   }
 
-  private renderQuickSeeds(panel: Panel, w: World): void {
-    const seeds = CROP_ORDER.filter((c) => countItem(w.inventory, 'seed:' + c) > 0);
-    panel.body.add(label(this, -270, 56, '选一种种子，面朝已开垦的地按「互动」播种。', { size: 13, color: '#c9a06b' }));
-    if (seeds.length === 0) {
-      panel.body.add(label(this, -260, 96, '没有种子，去商店买吧。', { size: 14, color: '#c9a06b' }));
-    }
-    seeds.forEach((c, i) => {
-      const x = i % 2 === 0 ? -140 : 140;
-      const y = 92 + Math.floor(i / 2) * 44;
-      const id = `seed:${c}`;
-      panel.body.add(textButton(this, x, y, 230, 36,
-        `${CROPS[c].name} ×${countItem(w.inventory, id)}`, () => this.selectQuickItem(panel, id),
-        { bg: this.currentQuickItem === id ? 0x8a6a2a : 0x3f7d5a, fontSize: 15 }));
-    });
-  }
-
-  private renderQuickItems(panel: Panel, w: World): void {
-    panel.body.add(label(this, -270, 56, '道具 / 材料：目前只切换快捷显示。', { size: 13, color: '#c9a06b' }));
-    const items: Array<{ id: string; label: string }> = [];
-    const wood = countItem(w.inventory, 'wood');
-    if (wood > 0) items.push({ id: 'wood', label: `木头 ×${wood}` });
-    if (countItem(w.inventory, 'tool:pickaxe') > 0) {
-      items.push({ id: 'tool:pickaxe', label: `木镐子 耐久 ${toolDur(w, 'tool:pickaxe')}/${toolMaxDur('tool:pickaxe')}` });
-    }
-    if (items.length === 0) {
-      panel.body.add(label(this, -260, 96, '暂无可切换道具，去林区砍树试试。', { size: 14, color: '#c9a06b' }));
-    }
-    items.forEach((it, i) => {
-      const x = i % 2 === 0 ? -140 : 140;
-      const y = 92 + Math.floor(i / 2) * 44;
-      panel.body.add(textButton(this, x, y, 230, 36, it.label, () => this.selectQuickItem(panel, it.id),
-        { bg: this.currentQuickItem === it.id ? 0x8a6a2a : 0x3f7d5a, fontSize: 15 }));
-    });
-  }
-
-  private renderQuickDecor(panel: Panel, w: World): void {
-    const decors = decorEntries(w.inventory);
-    panel.body.add(label(this, -270, 56, '选中后对着空地按「互动」摆放；对着已摆放的按「互动」收回。',
-      { size: 13, color: '#c9a06b' }));
-    if (decors.length === 0) {
-      panel.body.add(label(this, -260, 100, '没有装饰：去杂货铺的「装饰」页买一件。', { size: 14, color: '#c9a06b' }));
-    }
-    decors.forEach((d, i) => {
-      const x = i % 2 === 0 ? -140 : 140;
-      const y = 96 + Math.floor(i / 2) * 44;
-      panel.body.add(textButton(this, x, y, 230, 36, `${itemName(d.id)} ×${d.n}`, () => this.selectQuickItem(panel, d.id),
-        { bg: this.currentQuickItem === d.id ? 0x8a6a2a : 0x3f7d5a, fontSize: 15 }));
-    });
-  }
-
-  /** 物品栏：种子 / 作物 / 材料 / 工具分两列展示 */
   /** 物品栏（面板本体在 ui/panels/inventoryPanel.ts） */
   private openInventory(): void {
     if (this.panelOpen) return;
