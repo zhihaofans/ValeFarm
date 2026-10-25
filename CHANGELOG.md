@@ -3,6 +3,12 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
+## 0.9.12 — build 36
+
+- **字号整体放大 1.18 倍**：像素字（Ark Pixel 12px）的 CJK 字宽 12px、英文只有 4~8px，12px CSS 下英文明显偏小、不好认。字体文件改不了大小，所以加了一个全局系数 `FONT_SCALE`（`src/ui/font.ts`），`label` / `textButton` / 面板标题 / HUD / 飘字全部走它。
+  - HUD 高度本来就按行高实算，字号放大后会**自动长高**，不会压字。
+  - 代价：像素字在 12/24 整数倍最锐利，1.18 倍有轻微抗锯齿（可读性优先）；若观感不满意，下一步可换 16px 变体并把字号对齐 16/32。
+
 ## 0.9.11 — build 35
 
 - **研究（D2）第一步：core 与存档**。把多余产出"研究掉"换知识点，知识点可兑换已有机制（铜锄头 40 / 铜洒水壶 60 / 体力上限 +10 于 50）—— 给后期一条不依赖金币的成长线。
