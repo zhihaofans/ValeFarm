@@ -32,6 +32,11 @@ export const TILE = {
   ornament_rug: 25,
   ornament_stonelantern: 26,
   ornament_scarecrow: 27,
+  cave_floor: 28,
+  cave_wall: 29,
+  cave_mouth: 30,
+  cave_exit: 31,
+  cave_ore: 32,
 } as const;
 
 export type TileName = keyof typeof TILE;

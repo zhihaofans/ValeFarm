@@ -556,6 +556,32 @@ def ore_tile():
     return img
 
 
+def cave_ore_tile():
+    """洞内矿脉：岩壁底色，不带林区草地，避免洞里出现亮绿色方块。"""
+    img = cave_floor_tile()
+    art = [
+        '................',
+        '................',
+        '.......dd.......',
+        '.....ddRRdd.....',
+        '....dRRrrRRd....',
+        '...dRrrrrrRRd...',
+        '...dRrccrrrRd...',
+        '...dRrccrrrRd...',
+        '...dRrrrrrsRd...',
+        '...dRrsiirrRd...',
+        '...dRrriirrRd...',
+        '...dRrrrrrrRd...',
+        '....dRRrrRRd....',
+        '.....dddddd.....',
+        '................',
+        '................',
+    ]
+    pal = {'d': '#1b1a20', 'R': '#5c5c68', 'r': '#7b7b88', 's': '#9a9aa8', 'c': '#d9863f', 'i': '#9ec2d6'}
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
 def ornament_pot_tile():
     """陶土花盆：小盆栽，摆在自己院子里的低矮装饰。"""
     art = [
@@ -712,6 +738,77 @@ def ornament_scarecrow_tile():
     return img
 
 
+def cave_floor_tile():
+    img = canvas16()
+    d = ImageDraw.Draw(img)
+    d.rectangle((0, 0, 15, 15), fill='#2b2724')
+    for (x, y) in ((2, 3), (7, 2), (12, 4), (4, 9), (10, 10), (13, 13)):
+        d.point((x, y), fill='#3a3430')
+    for (x, y) in ((5, 5), (9, 7), (2, 13), (12, 8)):
+        d.point((x, y), fill='#211e1c')
+    return img
+
+
+def cave_wall_tile():
+    img = canvas16()
+    d = ImageDraw.Draw(img)
+    d.rectangle((0, 0, 15, 15), fill='#1b1a20')
+    d.rectangle((1, 1, 14, 14), outline='#38343f')
+    for (x, y) in ((4, 4), (10, 4), (6, 9), (12, 11), (2, 12)):
+        d.point((x, y), fill='#4a4554')
+    return img
+
+
+def cave_mouth_tile():
+    art = [
+        '................',
+        '....RRRRRRRR....',
+        '...RrrrrrrrrR...',
+        '..RrrrrrrrrrrR..',
+        '..Rrr......rrR..',
+        '..Rr........rR..',
+        '..Rr........rR..',
+        '..Rr........rR..',
+        '..Rr........rR..',
+        '..Rrr......rrR..',
+        '..RRRRRRRRRRRR..',
+        '................',
+        '................',
+        '................',
+        '................',
+        '................',
+    ]
+    pal = {'R': '#3c3944', 'r': '#625c6d'}
+    img = canvas16()
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
+def cave_exit_tile():
+    art = [
+        '................',
+        '................',
+        '....WWWWWWWW....',
+        '....W......W....',
+        '....W.WWWW.W....',
+        '....W.W..W.W....',
+        '....W.W..W.W....',
+        '....W.WWWW.W....',
+        '....W......W....',
+        '....W.WWWW.W....',
+        '....W......W....',
+        '....WWWWWWWW....',
+        '................',
+        '................',
+        '................',
+        '................',
+    ]
+    pal = {'W': '#5b4a3a'}
+    img = canvas16()
+    img.alpha_composite(art_to_img(art, pal))
+    return img
+
+
 # 顺序即帧索引，写进 tiles.frames.ts（唯一数据源，改这里要重跑脚本）
 TILE_LIST = [    ('grass_a', grass_tile(1, False)),
     ('grass_b', grass_tile(2, True)),
@@ -741,6 +838,11 @@ TILE_LIST = [    ('grass_a', grass_tile(1, False)),
     ('ornament_rug', ornament_rug_tile()),
     ('ornament_stonelantern', ornament_stonelantern_tile()),
     ('ornament_scarecrow', ornament_scarecrow_tile()),
+    ('cave_floor', cave_floor_tile()),
+    ('cave_wall', cave_wall_tile()),
+    ('cave_mouth', cave_mouth_tile()),
+    ('cave_exit', cave_exit_tile()),
+    ('cave_ore', cave_ore_tile()),
 ]
 
 TILE_COLS = 8

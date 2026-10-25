@@ -19,6 +19,32 @@ async function waitDayReportOpen(page: Page): Promise<void> {
 
 test.use({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 3 });
 
+// 用户反馈：字体放大后，长提示横向冲出屏幕。中文没有空格，普通 wordWrap 不断行。
+test('长 toast 自动换行且不超出屏幕', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as unknown as any).__vale, null, { timeout: 30000 });
+  await page.waitForTimeout(700);
+
+  const r = await page.evaluate(() => {
+    const u = (window as unknown as any).__vale.scene.scene.get('ui');
+    u.closeTopPanel();
+    u.toast('木镐子已经用坏了，回制作台再做一把（需要 3 个木头，先去林区砍树；耐久为 0 时不能再挖矿）');
+    const t = u.toastObj;
+    const b = t.getBounds();
+    const S = u.uiDpr;
+    return {
+      left: b.left / S, right: b.right / S,
+      top: b.top / S, bottom: b.bottom / S,
+      vw: window.innerWidth, vh: window.innerHeight,
+    };
+  });
+  expect(r.left, '提示左边缘越界').toBeGreaterThanOrEqual(-1);
+  expect(r.right, `提示右边缘 ${r.right.toFixed(0)} 超过屏幕 ${r.vw}`).toBeLessThanOrEqual(r.vw + 1);
+  expect(r.top, '提示上边缘越界').toBeGreaterThanOrEqual(-1);
+  expect(r.bottom, `提示下边缘 ${r.bottom.toFixed(0)} 超过屏幕 ${r.vh}`).toBeLessThanOrEqual(r.vh + 1);
+});
+
 test('面板外透明点击区：不压暗 HUD，左上角点外也能关闭', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => !!(window as unknown as any).__vale, null, { timeout: 30000 });
@@ -102,7 +128,7 @@ test('面板：✕ 可点、按钮可点、背景摇杆被锁', async ({ page })
   await page.waitForTimeout(300);
   expect(await paused()).toBe(false);
 
-  // 3) 重新打开面板，点主按钮（"横屏全屏"）也能关
+  // 3) 重新打开面板，点「开始新的一天」也能关
   await page.evaluate(() => (window as unknown as any).__vale.scene.scene.get('ui').showDayReport(['回归测试']));
   await page.waitForTimeout(300);
   expect(await paused()).toBe(true);

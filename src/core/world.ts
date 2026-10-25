@@ -7,6 +7,7 @@ import {
   ORE_HP, TREE_HP,
 } from './config';
 import { NPCS, ORE_SPOTS, TREE_SPOTS } from './data';
+import { defaultCave } from './cave';
 import type { Plot, World } from './types';
 
 export const worldVersion = SAVE_FMT;
@@ -49,6 +50,8 @@ export function createWorld(): World {
     toolCan: 1,
     toolHoe: 1,
     plots,
+    area: 'farm',
+    cave: defaultCave(),
     trees: TREE_SPOTS.map(([x, y]) => ({ x, y, hp: TREE_HP })),
     ores: ORE_SPOTS.map(([x, y]) => ({ x, y, hp: ORE_HP })),
     decor: [],

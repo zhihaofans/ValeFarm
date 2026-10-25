@@ -61,14 +61,12 @@ export function buildDayReportPanel(deps: DayReportDeps): Panel {
     y += 34;
   }
 
-  // 竖屏本来就能玩，这个按钮只是「顺便帮你转横屏」：文案要和提示卡片保持一致
-  panel.body.add(textButton(s, 0, y + 60, 220, 46, '横屏全屏', () => {
-    // 必须在用户手势里同步发起全屏/锁屏请求：这是 iOS 之外所有浏览器唯一的放行时机。
-    // 放在 panel.close() 之前，避免任何异步等待把"用户手势"上下文丢掉。
-    window.__valeEnterLandscape?.();
+  // 晨报只负责“看 + 开始新的一天”。横屏按钮属于竖屏建议卡片，
+  // 不再塞进每天的晨报——横屏玩家看到它只会莫名其妙。
+  panel.body.add(textButton(s, 0, y + 60, 220, 46, '开始新的一天', () => {
     panel.close();
     deps.onClose();
-  }, { fontSize: 18 }));
+  }, { bg: 0x3f7d5a, fontSize: 18 }));
 
   return panel;
 }

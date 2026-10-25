@@ -30,8 +30,8 @@ npm run dev -- --host   # 手机同局域网调试（需 https 或 localhost 才
 
 npm run build        # 类型检查 + 构建 → docs/
 npm run preview      # 预览构建产物 :4173
-npm test             # 单元测试（vitest，94 条，秒级）
-npm run test:e2e     # 端到端（playwright，38 条，约 50 秒）
+npm test             # 单元测试（vitest，148 条，秒级）
+npm run test:e2e     # 端到端（playwright，49 条，约 60 秒）
 npm run package      # 打 zip（源码 + docs/）
 ```
 
@@ -67,6 +67,7 @@ src/
 │   ├── daycycle.ts    每日结算（作物生长、体力恢复、昏倒惩罚）
 │   ├── forest.ts      林区树木状态与砍伐
 │   ├── mine.ts        矿脉状态、挖矿（需木镐）、次日刷新
+│   ├── cave.ts        B1 矿洞：进出洞、返回坐标、洞内矿脉
 │   ├── npc.ts         好感度、送礼、对话
 │   ├── save.ts        ★ 存档序列化 / 反序列化 / 字段归一化 / 版本迁移
 │   ├── storage.ts     IndexedDB 封装（失败降级 localStorage）
@@ -199,7 +200,7 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 
 ## 6. 测试策略
 
-### 单元测试（94 条，`tests/unit/`）
+### 单元测试（148 条，`tests/unit/`）
 
 全是 `core/` 的纯函数，不碰浏览器。改了经济、存档、作物、NPC 逻辑必须保持绿。
 
@@ -212,8 +213,9 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 | `crops.test.ts` / `economy.test.ts` / `npc.test.ts` | 作物阶段、买卖算价、每日特价、制作、好感度边界 |
 | `forest.test.ts` | 树木点位、砍伐次数、木头产出、体力不足 |
 | `mine.test.ts` | 矿脉点位、木镐门槛、三下挖空产出、次日刷新、矿石定价与卖出 |
+| `cave.test.ts` | B1 进出洞、返回坐标、洞内矿脉独立、存档往返、旧档默认农场 |
 
-### E2E（38 条，`tests/e2e/`）
+### E2E（49 条，`tests/e2e/`）
 
 | 文件 | 守什么 |
 |---|---|
@@ -221,6 +223,8 @@ e2e 里有一条用例专门守这个：写入 → reload → 逐字段（含嵌
 | `safe-area.spec.ts` | 三种机型的 HUD/按钮位置、**iOS PWA 真机场景（screen 852 / inner 793）**、env 失效兜底、更新提示条尺寸 |
 | `modal.spec.ts` | 面板 ✕ 可点、按钮可点、摇杆被锁、竖屏内容不越界、诊断面板 |
 | `orientation.spec.ts` | 竖屏建议卡片、全屏请求、iOS 降级体验 |
+| `cave.spec.ts` | 林区洞口进洞、HUD 矿洞名、存档重载仍在洞内、底部出口回林区 |
+| `mining.spec.ts` / `decor-market.spec.ts` | 挖矿门槛/耐久、装饰摆放重载、集市日倍率 |
 
 **headless 怎么测安全区**：Chromium 没有刘海，`env()` 恒为 0。e2e 用
 `window.__valeSafeInsets = { top: 59, bottom: 34 }` 注入真机数值，

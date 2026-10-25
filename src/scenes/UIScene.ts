@@ -367,8 +367,10 @@ export class UIScene extends Phaser.Scene {
     const w = this.gameScene.world;
     const season = seasonOf(w.day);
     this.dayText.setText(`第${w.day}天  ${SEASON_NAMES[season]}季 ${dayOfSeason(w.day)}/${SEASON_DAYS}`);
-    // 调试/定位：地图名在坐标左边；x>=FOREST_X 即林区
-    const mapName = w.playerX >= FOREST_X ? '林区' : '村庄';
+    // 调试/定位：地图名在坐标左边；矿洞优先，其次 x>=FOREST_X 即林区
+    const mapName = w.area === 'cave'
+      ? `矿洞 B${w.cave.depth}`
+      : (w.playerX >= FOREST_X ? '林区' : '村庄');
     this.timeText.setText(`${clockText(w.minute)}  ${mapName}  坐标 (${w.playerX},${w.playerY})`);
     this.goldText.setText(String(w.gold));
     this.weatherIcon.setFrame(w.weather === 'rain' ? UI.rain : UI.sun);
@@ -612,11 +614,23 @@ export class UIScene extends Phaser.Scene {
     // 垂直居中（用户要求）：以前贴 HUD 下沿，竖屏两行 HUD 一占，提示会挤在屏幕上半截，
     // 还容易被灵动岛那条深色带看着像"压在 HUD 里"。居中后离上下两边都远。
     // 用 (origin 0.5, 0.5) + vh/2：多行文本也能以自身中心对齐屏幕中心。
-    const t = this.add.text(this.vw / 2, this.vh / 2, text, {
-      fontSize: `${px(18) * S}px`, color: '#ffffff', fontFamily: UI_FONT,
+    //
+    // 中文没有空格，普通 wordWrap 不会断行；必须 useAdvancedWrap，否则长句会横向冲出屏幕。
+    const maxW = Math.min(560, this.vw / S - 32);
+    let size = 18;
+    const make = () => this.add.text(this.vw / 2, this.vh / 2, text, {
+      fontSize: `${px(size) * S}px`, color: '#ffffff', fontFamily: UI_FONT,
       backgroundColor: '#000000aa', padding: { x: 14 * S, y: 9 * S },
-      align: 'center', wordWrap: { width: Math.min(560, (this.vw / S) - 48) * S },
+      align: 'center', lineSpacing: 3 * S,
+      wordWrap: { width: maxW * S, useAdvancedWrap: true },
     }).setOrigin(0.5).setScrollFactor(0).setDepth(UI_DEPTH.toast);
+    let t = make();
+    // 极端长文本再降一档字号，保证不顶出上下边界
+    while (t.height > this.vh * 0.46 && size > 13) {
+      t.destroy();
+      size -= 1;
+      t = make();
+    }
     this.toastObj = t;
     this.toastTimer = this.time.delayedCall(1800, () => {
       t.destroy();

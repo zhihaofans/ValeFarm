@@ -1,8 +1,9 @@
 // 回归：竖屏提示条。真机上"转屏锁定"没法自动化，这里只压最容易坏的四件事：
 //   ① 竖屏时提示条只是**建议卡片**，不能挡住触摸（"竖屏也能玩"是硬要求）
-//   ② 点「横屏全屏」要在手势里真的去请求全屏 + 锁横屏（API 是否存在无所谓，调用要发生）
+//   ② 提示卡里的「横屏全屏」要在手势里真的去请求全屏 + 锁横屏
 //   ③ 任何一步失败都不能让游戏挂掉、也不能把画布压变形
 //   ④ 按能力探测给按钮降级：iOS 浏览器 / 已装 PWA 都不能摆点不动的按钮
+// 注意：晨报面板不再带「横屏全屏」；横屏按钮只属于竖屏建议卡。
 import { expect, test, type Page } from '@playwright/test';
 
 /**
@@ -145,55 +146,35 @@ test.describe('竖屏（手机竖着拿）', () => {
 test.describe('横屏（正常游玩）', () => {
   test.use({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 3 });
 
-  test('不弹提示条；点晨报里的「横屏全屏」后关闭面板并进入游戏', async ({ page }) => {
-    await page.addInitScript(() => {
-      const w = window as any;
-      w.__fsCalls = 0;
-      w.__locks = [];
-      (HTMLElement.prototype as any).requestFullscreen = function () {
-        w.__fsCalls++;
-        return Promise.resolve();
-      };
-      Object.defineProperty(Screen.prototype, 'orientation', {
-        configurable: true,
-        get: () => ({ lock: (o: string) => { w.__locks.push(o); return Promise.resolve(); }, unlock: () => {} }),
-      });
-    });
-
+  test('不弹提示条；晨报不再显示「横屏全屏」，点「开始新的一天」进入游戏', async ({ page }) => {
     await page.goto('/');
     await page.waitForFunction(() => !!(window as any).__vale, null, { timeout: 30000 });
     await waitDayReportOpen(page);
 
     await expect(page.locator('#rotate-tip')).toBeHidden();
 
-    // 晨报面板的主按钮：坐标从运行时布局读，别写死 800×450
-    const box = (await page.locator('#game canvas').boundingBox())!;
-    const pos = await page.evaluate(() => {
+    const r = await page.evaluate(() => {
       const ui = (window as any).__vale.scene.scene.get('ui');
       const p = ui.activePanel;
-      // 主按钮 = 晨报正文里最宽的那个可点按钮。
-      // 不用 hitArea.width === 220 这种魔法值：按钮尺寸按 CSS 写、内部乘过 dpr，
-      // 写死数字会在别的 dpr 下失效（0.4.0 踩过）。
-      const btns = (p?.body?.list ?? []).filter((o: any) => o.input?.hitArea?.width > 0);
-      const btn = btns.sort((a: any, b: any) => b.input.hitArea.width - a.input.hitArea.width)[0];
-      if (!btn) return null;
-      const m = btn.getWorldTransformMatrix();
-      // UI 坐标是画布像素（= CSS × dpr），喂给 page 前要除回来
-      return { x: m.tx / ui.uiDpr, y: m.ty / ui.uiDpr };
+      const buttons = (p?.body?.list ?? []).filter((o: any) => o.input?.hitArea?.width > 0);
+      const label = (b: any) => (b.list ?? []).map((c: any) => String(c.text ?? '')).join('');
+      const landscape = buttons.find((b: any) => label(b).includes('横屏全屏')) ?? null;
+      const start = buttons.find((b: any) => label(b).includes('开始新的一天')) ?? null;
+      if (!start) return { landscape: !!landscape, start: null };
+      const m = start.getWorldTransformMatrix();
+      return { landscape: !!landscape, start: { x: m.tx / ui.uiDpr, y: m.ty / ui.uiDpr } };
     });
-    expect(pos, '晨报里应有主按钮').not.toBeNull();
-    await page.touchscreen.tap(box.x + pos!.x, box.y + pos!.y);
-    await page.waitForTimeout(400);
+    expect(r.landscape, '横屏晨报不应再塞「横屏全屏」按钮').toBe(false);
+    expect(r.start, '晨报应有「开始新的一天」主按钮').not.toBeNull();
 
+    await page.touchscreen.tap(r.start!.x, r.start!.y);
+    await page.waitForTimeout(400);
     const st = await page.evaluate(() => {
-      const w = window as any;
-      const ui = w.__vale.scene.scene.get('ui');
-      return { fs: w.__fsCalls, locks: w.__locks, panelOpen: !!ui.panelOpen, paused: w.__vale.scene.timePaused };
+      const ui = (window as any).__vale.scene.scene.get('ui');
+      return { panelOpen: !!ui.panelOpen, paused: (window as any).__vale.scene.timePaused };
     });
     expect(st.panelOpen, '面板应关闭').toBe(false);
     expect(st.paused, '游戏应恢复运行').toBe(false);
-    expect(st.fs, '应请求全屏').toBe(1);
-    expect(st.locks).toContain('landscape');
   });
 });
 

@@ -16,6 +16,10 @@ import {
 } from '../core/actions';
 import { chopTree, treeAt } from '../core/forest';
 import { canMine, mineOre, oreAt } from '../core/mine';
+import {
+  CAVE_ENTRANCE, CAVE_EXIT, CAVE_H, CAVE_SPAWN, CAVE_W,
+  enterCave as enterCaveCore, exitCave as exitCaveCore, inCaveMap,
+} from '../core/cave';
 import { decorAt, decorBlocks, isDecorId, placeDecor, removeDecor } from '../core/decor';
 import { endDay } from '../core/daycycle';
 import { seasonSeeds } from '../core/economy';
@@ -32,6 +36,14 @@ import type { UIScene } from './UIScene';
 const SPEED = 110; // px/s
 /** 脚底相对角色中心的偏移；碰撞、HUD 坐标、存档统一用脚底格 */
 const FOOT_OFFSET = 10;
+
+interface GameSceneData {
+  world: World;
+  /** 区域切换/睡觉重启时不要重复弹晨报 */
+  skipReady?: boolean;
+  /** 睡觉重启后要补显示的晨报内容 */
+  report?: string[];
+}
 
 export class GameScene extends Phaser.Scene {
   world!: World;
@@ -59,14 +71,33 @@ export class GameScene extends Phaser.Scene {
     super('game');
   }
 
-  create(data: { world: World }): void {
+  create(data: GameSceneData): void {
     this.world = data.world;
+    // scene.restart（进/出洞、洞里睡到次日）会复用同一个实例：
+    // Phaser 销毁旧 GameObject，但数组/Map 字段不会自动清空，必须在这里重置，
+    // 否则回农场时 refreshAllPlots 会拿到已销毁的旧 plotSprites。
+    this.groundSprites = [];
+    this.plotSprites = [];
+    this.treeSprites.clear();
+    this.oreSprites.clear();
+    this.decorSprites.clear();
+    this.activeCrops.clear();
+    this.cropFree = [];
+    this.npcSprites.clear();
+    this.rainDrops = [];
+    this.busy = false;
+    this.timePaused = false;
+    this.minuteAcc = 0;
+    this.autoSaveAcc = 0;
     this.buildMap();
     this.buildActors();
     this.ensurePlayerWalkable();
     this.buildFx();
     this.refreshAllPlots();
     this.applyWeather();
+    if (this.world.area === 'cave') {
+      this.cameras.main.setBackgroundColor(0x08080c);
+    }
 
     this.applyCameraZoom();
     this.applyCameraBounds();
@@ -74,7 +105,10 @@ export class GameScene extends Phaser.Scene {
     window.__valeView = this.viewSize();
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     // 转屏/地址栏收缩：画布尺寸变了，zoom 与取景范围都要重算，否则世界会被非等比拉伸
-    this.scale.on('resize', () => { this.applyCameraZoom(); this.applyCameraBounds(); });
+    // 注意：scene.restart（进/出洞）会重新 create，handler 必须能移除，不能越积越多
+    const onResize = (): void => { this.applyCameraZoom(); this.applyCameraBounds(); };
+    this.scale.on('resize', onResize);
+    this.events.once('shutdown', () => this.scale.off('resize', onResize));
 
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.keyAct = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
@@ -95,10 +129,17 @@ export class GameScene extends Phaser.Scene {
       window.removeEventListener('pagehide', onPageHide);
     });
 
-    // 全部画面渲染完毕后，通知 UI 显示晨报
-    this.time.delayedCall(100, () => {
-      (this.scene.get('ui') as UIScene).onGameReady();
-    });
+    // 正常启动：交给 UIScene 决定欢迎/晨报；区域切换静默重启；睡觉重启补晨报
+    if (data.report) {
+      this.time.delayedCall(100, () => {
+        (this.scene.get('ui') as UIScene).showDayReport(data.report!);
+        void this.save();
+      });
+    } else if (!data.skipReady) {
+      this.time.delayedCall(100, () => {
+        (this.scene.get('ui') as UIScene).onGameReady();
+      });
+    }
 
     window.__vale = { scene: this, world: this.world };
   }
@@ -106,8 +147,10 @@ export class GameScene extends Phaser.Scene {
   // ------------------------------------------------------------- 地图
 
   private isBlockedTile(tx: number, ty: number): boolean {
+    if (this.world.area === 'cave') return this.isBlockedCave(tx, ty);
     if (!inMap(tx, ty)) return true;
     // 特殊建筑 / 水面 / 栅栏
+    if (tx === CAVE_ENTRANCE.x && ty === CAVE_ENTRANCE.y) return true; // 林区洞口
     if (tx === 2 && ty === 2) return true;   // 小屋
     if (tx === 19 && ty === 2) return true;  // 商店
     if (tx === 15 && ty === 4) return true;  // 出货箱（移到路南，避免道路空气墙）
@@ -140,6 +183,15 @@ export class GameScene extends Phaser.Scene {
     return false;
   }
 
+  private isBlockedCave(tx: number, ty: number): boolean {
+    if (!inCaveMap(tx, ty)) return true;
+    // 四周岩壁 + 底部出口（出口是实心，面朝它按互动）
+    if (tx === 0 || ty === 0 || tx === CAVE_W - 1 || ty === CAVE_H - 1) return true;
+    if (tx === CAVE_EXIT.x && ty === CAVE_EXIT.y) return true;
+    if (oreAt(this.world, tx, ty)) return true;
+    return false;
+  }
+
   private drawTree(tree: TreeState): void {
     const img = this.add.image(tree.x * TILE_PX + 16, tree.y * TILE_PX + 16, 'tiles', TILE.tree)
       .setDepth(8);
@@ -152,7 +204,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawOre(ore: OreState): void {
-    const img = this.add.image(ore.x * TILE_PX + 16, ore.y * TILE_PX + 16, 'tiles', TILE.ore)
+    const frame = this.world.area === 'cave' ? TILE.cave_ore : TILE.ore;
+    const img = this.add.image(ore.x * TILE_PX + 16, ore.y * TILE_PX + 16, 'tiles', frame)
       .setDepth(8);
     img.setVisible(ore.hp > 0);
     this.oreSprites.set(`${ore.x},${ore.y}`, img);
@@ -165,6 +218,7 @@ export class GameScene extends Phaser.Scene {
   /** 清晨刷矿：所有矿脉重新露头 */
   private refreshAllOres(): void {
     for (const ore of this.world.ores) this.refreshOre(ore);
+    for (const ore of this.world.cave.ores) this.refreshOre(ore);
   }
 
   // ------------------------------------------------------------- 装饰
@@ -199,6 +253,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private buildMap(): void {
+    if (this.world.area === 'cave') {
+      this.buildCaveMap();
+      return;
+    }
     const rnd = new Phaser.Math.RandomDataGenerator(['vale-farm-ground']);
     // 外圈多铺 8 格草地（只画不参与碰撞）：竖屏一屏比地图还高，
     // 不铺的话地图边缘外会露出纯背景色，看起来像黑边。多铺一层最省事也最安全。
@@ -255,6 +313,8 @@ export class GameScene extends Phaser.Scene {
     putProp(16, 4, TILE.lamp);
     putProp(23, 4, TILE.lamp);
     putProp(16, 5, TILE.sign);
+    // 林区北侧洞口：实心；面朝它按互动进入矿洞
+    putProp(CAVE_ENTRANCE.x, CAVE_ENTRANCE.y, TILE.cave_mouth);
 
     // 林区树木
     for (const tree of this.world.trees) this.drawTree(tree);
@@ -286,6 +346,34 @@ export class GameScene extends Phaser.Scene {
     ).setScrollFactor(0).setDepth(50);
   }
 
+  /** B1 矿洞：14×10 房间 + 外圈岩壁；只画洞内，不碰农田/NPC */
+  private buildCaveMap(): void {
+    const putTile = (tx: number, ty: number, frame: number) => {
+      const img = this.add.image(tx * TILE_PX + 16, ty * TILE_PX + 16, 'tiles', frame);
+      img.setDepth(-10);
+      this.groundSprites.push(img);
+    };
+    const PAD = 4;
+    for (let y = -PAD; y < CAVE_H + PAD; y++) {
+      for (let x = -PAD; x < CAVE_W + PAD; x++) {
+        const border = x < 0 || y < 0 || x >= CAVE_W || y >= CAVE_H;
+        putTile(x, y, border ? TILE.cave_wall : TILE.cave_floor);
+      }
+    }
+    // 底部出口（画在墙上，碰撞在 isBlockedCave）
+    this.add.image(CAVE_EXIT.x * TILE_PX + 16, CAVE_EXIT.y * TILE_PX + 16, 'tiles', TILE.cave_exit)
+      .setDepth(6);
+    for (const ore of this.world.cave.ores) this.drawOre(ore);
+
+    this.facingCursor = this.add.rectangle(0, 0, TILE_PX - 4, TILE_PX - 4)
+      .setStrokeStyle(2, 0xffffff, 0.9).setDepth(12);
+    this.nightOverlay = this.add.rectangle(
+      this.scale.width / 2, this.scale.height / 2,
+      this.scale.width * 2, this.scale.height * 2,
+      0x0a1030, 0,
+    ).setScrollFactor(0).setDepth(50);
+  }
+
   private buildActors(): void {
     // 动画：4 方向 × [站, 左步, 站, 右步]
     for (const [name, row] of Object.entries(DIR_ROW)) {
@@ -308,12 +396,14 @@ export class GameScene extends Phaser.Scene {
     ).setDepth(10);
 
     for (const def of NPCS) {
+      if (this.world.area === 'cave') break; // 洞里没有 NPC
       const s = this.add.sprite(def.home.x * TILE_PX + 16, def.home.y * TILE_PX + 16, 'npc', 0).setDepth(10);
       this.npcSprites.set(def.id, s);
     }
   }
 
   private buildFx(): void {
+    if (this.world.area === 'cave') return;
     if (this.world.weather === 'rain') this.ensureRainDrops();
   }
 
@@ -328,6 +418,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private applyWeather(): void {
+    if (this.world.area === 'cave') {
+      for (const d of this.rainDrops) d.setVisible(false);
+      return;
+    }
     if (this.world.weather === 'rain') this.ensureRainDrops();
     for (const d of this.rainDrops) d.setVisible(this.world.weather === 'rain');
   }
@@ -335,6 +429,7 @@ export class GameScene extends Phaser.Scene {
   // ------------------------------------------------------------- 农田视觉
 
   private refreshAllPlots(): void {
+    if (this.world.area === 'cave') return;
     for (let i = 0; i < FARM_W * FARM_H; i++) this.refreshPlot(i);
   }
 
@@ -406,7 +501,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateRain(dt: number): void {
-    if (this.world.weather !== 'rain') return;
+    if (this.world.area === 'cave' || this.world.weather !== 'rain') return;
     for (const d of this.rainDrops) {
       d.y += 260 * dt;
       d.x -= 40 * dt;
@@ -418,6 +513,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateNightTint(): void {
+    if (this.world.area === 'cave') {
+      this.nightOverlay.fillColor = 0x06060c;
+      this.nightOverlay.setAlpha(0.24);
+      return;
+    }
     const m = this.world.minute;
     // 18:00 起渐暗，22 点后维持深蓝夜色
     let alpha = 0;
@@ -462,8 +562,9 @@ export class GameScene extends Phaser.Scene {
    */
   private applyCameraBounds(): void {
     const cam = this.cameras.main;
-    const mw = MAP_W * TILE_PX;
-    const mh = MAP_H * TILE_PX;
+    const cave = this.world.area === 'cave';
+    const mw = (cave ? CAVE_W : MAP_W) * TILE_PX;
+    const mh = (cave ? CAVE_H : MAP_H) * TILE_PX;
     const vw = cam.width / cam.zoom;
     const vh = cam.height / cam.zoom;
     const padX = Math.max(0, (vw - mw) / 2) + 64;
@@ -509,7 +610,8 @@ export class GameScene extends Phaser.Scene {
         }
       }
     }
-    set(FARM_OX + 1, FARM_OY - 2); // 最后兜底：出生点
+    if (this.world.area === 'cave') set(CAVE_SPAWN.x, CAVE_SPAWN.y);
+    else set(FARM_OX + 1, FARM_OY - 2); // 最后兜底：出生点
   }
 
   private facingTile(): { x: number; y: number } {
@@ -581,6 +683,14 @@ export class GameScene extends Phaser.Scene {
     if (this.busy || this.timePaused) return;
     const t = this.facingTile();
     const pt = this.playerTile();
+
+    if (this.world.area === 'cave') { this.caveAction(t); return; }
+
+    // 林区洞口：面朝按互动进洞
+    if (t.x === CAVE_ENTRANCE.x && t.y === CAVE_ENTRANCE.y) {
+      if (enterCaveCore(this.world)) this.restartArea('你走进了矿洞…');
+      return;
+    }
 
     // NPC 就在面前（含相邻）
     for (const [id, s] of this.npcSprites) {
@@ -677,6 +787,38 @@ export class GameScene extends Phaser.Scene {
     const fc = farmCoord(t.x, t.y);
     if (!fc) { (this.scene.get('ui') as UIScene).toast('这里没什么可做的'); return; }
     this.farmAction(fc.x, fc.y);
+  }
+
+  /** 洞内互动：出口 / 矿脉；其它地方给明确反馈 */
+  private caveAction(t: { x: number; y: number }): void {
+    const ui = this.scene.get('ui') as UIScene;
+    if (t.x === CAVE_EXIT.x && t.y === CAVE_EXIT.y) {
+      if (exitCaveCore(this.world)) this.restartArea('你回到了林区洞口。');
+      return;
+    }
+    const ore = oreAt(this.world, t.x, t.y);
+    if (!ore) {
+      ui.toast('洞壁很硬，这里没什么可挖的。');
+      SFX.fail();
+      return;
+    }
+    const gate = canMine(this.world, ui.currentQuickItemId());
+    if (!gate.ok) {
+      ui.toast(gate.text);
+      SFX.fail();
+      return;
+    }
+    const r = mineOre(this.world, t.x, t.y);
+    if (r.ok) SFX.mine();
+    this.afterAction(r.text, r.ok, r.energy);
+    this.refreshOre(ore);
+  }
+
+  /** 进/出洞：先存档，再整场景重启；UIScene 不重启，靠 skipReady 不重弹晨报 */
+  private restartArea(message: string): void {
+    (this.scene.get('ui') as UIScene).toast(message);
+    void this.save();
+    this.scene.restart({ world: this.world, skipReady: true });
   }
 
   private farmAction(fx: number, fy: number): void {
@@ -817,6 +959,15 @@ export class GameScene extends Phaser.Scene {
     this.busy = true;
     SFX.sleep();
     const report = endDay(this.world, fromCollapse);
+
+    // 在矿洞里睡到第二天：直接回农场床边，重建地表场景，再补晨报
+    if (this.world.area === 'cave') {
+      this.world.area = 'farm';
+      this.world.playerX = 2;
+      this.world.playerY = 3;
+      this.scene.restart({ world: this.world, skipReady: true, report: report.lines });
+      return;
+    }
 
     // 相机淡出 → 结算 → 淡入
     this.cameras.main.fadeOut(400, 0, 0, 0);

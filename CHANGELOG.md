@@ -3,6 +3,16 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
+## Unreleased
+
+- 新增 **B1 单层矿洞**：林区洞口 `(27,1)` 进洞，14×10 房间 + 4 处固定矿脉；出洞回到进洞前坐标，HUD 显示 `矿洞 B1`。
+- 矿洞复用手持木镐 + 耐久 + 6 体力规则；洞内/林区矿脉分开存档，次日清晨一起回满。
+- 存档 `SAVE_FMT` 6 → **7**：新增 `World.area` / `World.cave`；旧档默认农场并补矿洞。
+- 在矿洞睡到次日/昏倒会自动回农场床边并补晨报；进出洞走同一套移动/UI，不重弹欢迎。
+- 全局字号从 1.18 降到 **1.08**，缓解 HUD/面板整体偏大。
+- 长 toast 改为 advanced wrap + 屏幕内宽度约束，超长文本自动降字号，不再横向冲出屏幕。
+- 晨报去掉「横屏全屏」，改为「开始新的一天」；横屏按钮只保留在竖屏建议卡片里。
+
 ## 0.9.12 — build 36
 
 - **字号整体放大 1.18 倍**：像素字（Ark Pixel 12px）的 CJK 字宽 12px、英文只有 4~8px，12px CSS 下英文明显偏小、不好认。字体文件改不了大小，所以加了一个全局系数 `FONT_SCALE`（`src/ui/font.ts`），`label` / `textButton` / 面板标题 / HUD / 飘字全部走它。

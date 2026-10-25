@@ -30,9 +30,10 @@ export interface MineResult {
   pickaxeDur?: number;
 }
 
-/** 拿在身上的矿脉（hp>0）；已挖空返回 null */
+/** 当前区域的矿脉（hp>0）；已挖空返回 null */
 export function oreAt(w: World, x: number, y: number): OreState | null {
-  return w.ores.find((o) => o.x === x && o.y === y && o.hp > 0) ?? null;
+  const list = w.area === 'cave' ? w.cave.ores : w.ores;
+  return list.find((o) => o.x === x && o.y === y && o.hp > 0) ?? null;
 }
 
 export function hasPickaxe(w: World): boolean {
@@ -91,9 +92,10 @@ export function mineOre(w: World, x: number, y: number): MineResult {
   };
 }
 
-/** 次日清晨：所有矿脉回满（当天的产出额度自然刷新） */
+/** 次日清晨：所有矿脉（林区 + 矿洞）回满 */
 export function refreshOres(w: World): void {
   for (const o of w.ores) o.hp = ORE_HP;
+  for (const o of w.cave.ores) o.hp = ORE_HP;
 }
 
 /** 镐子耐久比例 0..1（转发到 tools 层，保留旧名字方便调用方） */

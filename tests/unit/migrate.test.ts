@@ -1,4 +1,4 @@
-// 存档迁移回归（SAVE_FMT 2 → 3 → 4 → 5，共四次结构升级）。
+// 存档迁移回归（SAVE_FMT 1 → 7，覆盖每一代结构升级）。
 //
 // 为什么单独一个文件：这类问题的特征是"不报错、只静默丢数据"。
 // 单测里的 save.test.ts 逐字段守的是"当前格式"；这里守的是**每一代旧档**：
@@ -7,6 +7,8 @@
 //   v3：+ 矿脉与矿石物品
 //   v4：+ 可摆放装饰与 decor:<id> 物品
 //   v5：+ 工具耐久 toolDur
+//   v6：+ 研究点/解锁
+//   v7：+ 矿洞区域 area/cave
 //
 // 每条都验三件事：① 旧字段原样保留 ② 缺的新字段按规则补默认 ③ fmt 升到当前值。
 
@@ -132,6 +134,20 @@ describe('旧档迁移链', () => {
     expect(w.decor[0]).toEqual({ id: 'decor:flowerpot', x: 12, y: 1 });
     expect(w.inventory['decor:mailbox']).toBe(1);
     expect(w.toolDur['tool:pickaxe']).toBe(toolMaxDur('tool:pickaxe'));
+  });
+
+  it('v6 → 7：研究字段保留，矿洞默认补满，旧档仍在农场', () => {
+    const w = normalizeWorld(saveV1({
+      fmt: 6,
+      knowledge: 5,
+      unlocked: ['kn:stamina'],
+    }));
+    expect(w.fmt).toBe(SAVE_FMT);
+    expect(w.knowledge).toBe(5);
+    expect(w.unlocked).toEqual(['kn:stamina']);
+    expect(w.area).toBe('farm');
+    expect(w.cave.depth).toBe(1);
+    expect(w.cave.ores.length).toBe(4);
   });
 
   it('迁移是幂等的：normalize → serialize → normalize 结果一致', () => {

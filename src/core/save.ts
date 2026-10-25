@@ -6,8 +6,9 @@
 
 import { FARM_H, FARM_W, MAP_H, MAP_W, ORE_HP, SAVE_FMT as FMT_CURRENT, TREE_HP } from './config';
 import { DECOR_IDS, KNOWLEDGE_SHOP, NPCS, ORE_SPOTS, TOOLS, TREE_SPOTS, toolMaxDur } from './data';
+import { CAVE_H, CAVE_W, CAVE_ORE_SPOTS, defaultCave } from './cave';
 import { createWorld } from './world';
-import type { Facing, Inventory, OreState, PlacedDecor, Plot, Season, TreeState, Weather, World } from './types';
+import type { CaveState, Facing, Inventory, OreState, PlacedDecor, Plot, Season, TreeState, Weather, World } from './types';
 
 // ---------------------------------------------------------------- 基础类型守卫
 
@@ -174,6 +175,28 @@ function normalizeOres(raw: unknown): OreState[] {
   return ORE_SPOTS.map(([x, y]) => ({ x, y, hp: byPos.get(`${x},${y}`) ?? ORE_HP }));
 }
 
+/** 矿洞：depth/返回坐标/固定矿脉白名单，全部逐项夹取 */
+function normalizeCave(raw: unknown): CaveState {
+  const base = defaultCave();
+  const o = isObj(raw) ? raw : {};
+  const byPos = new Map<string, number>();
+  if (Array.isArray(o.ores)) {
+    for (const item of o.ores) {
+      if (!isObj(item)) continue;
+      const x = int(item.x, -1);
+      const y = int(item.y, -1);
+      if (x < 0 || y < 0) continue;
+      byPos.set(`${x},${y}`, Math.min(ORE_HP, Math.max(0, int(item.hp, ORE_HP))));
+    }
+  }
+  return {
+    depth: Math.max(1, int(o.depth, base.depth)),
+    ores: CAVE_ORE_SPOTS.map(([x, y]) => ({ x, y, hp: byPos.get(`${x},${y}`) ?? ORE_HP })),
+    returnX: Math.min(MAP_W - 1, Math.max(0, int(o.returnX, base.returnX))),
+    returnY: Math.min(MAP_H - 1, Math.max(0, int(o.returnY, base.returnY))),
+  };
+}
+
 // ---------------------------------------------------------------- 迁移链
 // 用整数格式号链式迁移：`if (fmt < N)`。数字比较天然正确，
 // 千万别用版本字符串比较（'1.9' < '1.13' 在字符串下是 false）。
@@ -195,6 +218,9 @@ function migrateFrom(raw: Obj, fmt: number): { data: Obj; fmt: number } {
   // v5 → v6：新增研究（World.knowledge / World.unlocked）。
   // 旧档没有这两个字段：normalizeWorld 里回落成 0 与空数组，这里只推格式号。
   if (f < 6) f = 6;
+  // v6 → v7：新增矿洞区域（World.area / World.cave）。
+  // 旧档默认回农场；cave 由 normalizeCave() 按固定点位补满。
+  if (f < 7) f = 7;
   return { data, fmt: f };
 }
 
@@ -208,6 +234,12 @@ export function normalizeWorld(raw: unknown): World {
   const rawFmt = int(o.fmt, 0);
   const migrated = migrateFrom(o, rawFmt);
   o = migrated.data;
+
+  // 区域与矿洞：旧档默认农场；玩家坐标按当前区域夹取
+  const area: World['area'] = o.area === 'cave' ? 'cave' : 'farm';
+  const cave = o.cave === undefined ? base.cave : normalizeCave(o.cave);
+  const maxX = area === 'cave' ? CAVE_W - 1 : MAP_W - 1;
+  const maxY = area === 'cave' ? CAVE_H - 1 : MAP_H - 1;
 
   let w: World = {
     // fmt —— 必须登记
@@ -235,6 +267,9 @@ export function normalizeWorld(raw: unknown): World {
     plots: Array.isArray(o.plots)
       ? o.plots.slice(0, FARM_W * FARM_H).map(normalizePlot)
       : base.plots,
+    // area / cave —— 必须登记：当前区域与矿洞状态
+    area,
+    cave,
     // trees —— 必须登记：林区固定点位 + hp
     trees: o.trees === undefined ? base.trees : normalizeTrees(o.trees),
     // ores —— 必须登记：矿脉固定点位 + hp（挖空当天 hp=0，次日 refreshOres 回满）
@@ -249,9 +284,9 @@ export function normalizeWorld(raw: unknown): World {
     unlocked: normalizeUnlocked(o.unlocked),
     // inventory —— 必须登记（老档/新档都没有 inventory 时回落初始背包）
     inventory: o.inventory === undefined ? base.inventory : normalizeInventory(o.inventory),
-    // playerX / playerY —— 必须登记；夹到地图内，避免旧档 y=-1 读档后卡在空气墙
-    playerX: Math.min(MAP_W - 1, Math.max(0, int(o.playerX, base.playerX))),
-    playerY: Math.min(MAP_H - 1, Math.max(0, int(o.playerY, base.playerY))),
+    // playerX / playerY —— 必须登记；夹到当前区域地图内，避免旧档 y=-1 读档后卡在空气墙
+    playerX: Math.min(maxX, Math.max(0, int(o.playerX, base.playerX))),
+    playerY: Math.min(maxY, Math.max(0, int(o.playerY, base.playerY))),
     facing: (['down', 'left', 'right', 'up'].includes(str(o.facing, 'down'))
       ? str(o.facing, 'down') : 'down') as Facing,
     // npcs —— 必须登记：好感度

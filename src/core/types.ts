@@ -61,6 +61,17 @@ export interface OreState {
   hp: number;
 }
 
+export type AreaId = 'farm' | 'cave';
+
+/** 单层矿洞状态；depth 先固定 1，为后续多层预留 */
+export interface CaveState {
+  depth: number;
+  ores: OreState[];
+  /** 进洞前在农场/林区的坐标，出洞时回到这里 */
+  returnX: number;
+  returnY: number;
+}
+
 /** 摆放出来的装饰：id 必须是 DECORS 里的一个（白名单，读档时校验） */
 export interface PlacedDecor {
   id: string;
@@ -98,6 +109,10 @@ export interface World {
   plots: Plot[];
   /** 林区树木状态（固定点位，hp=0 已砍倒） */
   trees: TreeState[];
+  /** 玩家当前所在区域；矿洞是独立小房间，但复用同一套移动/UI */
+  area: AreaId;
+  /** 矿洞状态（固定点位矿脉 + 返回坐标） */
+  cave: CaveState;
   /** 林区矿脉状态（固定点位，hp=0 当天已挖空，次日恢复） */
   ores: OreState[];
   /** 已摆放的装饰（玩家自由摆放，读档时按 DECORS 白名单 + 地图范围过滤） */
