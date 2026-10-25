@@ -1,6 +1,6 @@
 {
   "name": "vale-farm",
-  "version": "0.9.12",
+  "version": "0.9.13",
   "private": true,
   "description": "微光农庄 Vale Farm —— 纯前端手机横屏 2D 像素农场生活模拟",
   "type": "module",

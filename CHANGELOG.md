@@ -3,7 +3,7 @@
 > 版本号以 [public/version.json](public/version.json) 为唯一数据源；本文件只做人类可读的记录。
 > 技术变更与踩坑见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)，数值见 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md)。
 
-## Unreleased
+## 0.9.13 — build 37
 
 - 新增 **B1 单层矿洞**：林区洞口 `(27,1)` 进洞，14×10 房间 + 4 处固定矿脉；出洞回到进洞前坐标，HUD 显示 `矿洞 B1`。
 - 矿洞复用手持木镐 + 耐久 + 6 体力规则；洞内/林区矿脉分开存档，次日清晨一起回满。
