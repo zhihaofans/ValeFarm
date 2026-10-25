@@ -28,6 +28,78 @@
 - 版本唯一数据源是 [public/version.json](public/version.json)；不要把 `package.json` 的版本号当展示版本。
 - 更新记录见 [CHANGELOG.md](CHANGELOG.md)；屏幕适配 / 安全区 / PWA / 触控细节见 [TECH_NOTES.md](dev-docs/TECH_NOTES.md)。
 
+## 1.2 代码地图（改功能先定位到文件，再读那段代码）
+
+### 模块速查
+
+| 域 | 文件 | 关键导出 / 说明 |
+|---|---|---|
+| 入口 | `src/main.ts` | Phaser 配置、`new Phaser.Game()` 前 `waitPixelFont()`、`--app-h` 视口高度同步 |
+| 屏幕适配 | `src/layout.ts` | `computeLayout()` / `gameZoom()` / `uiInsets()` / `currentSafeInsets()` / `isStandaloneApp()` / `watchViewport()` |
+| 横竖屏与全屏 | `src/orientation.ts` | `initOrientation()`、`requestLandscape()`、`shouldShowTip()` |
+| PWA | `src/pwa.ts`、`public/sw.js` | SW 注册、更新提示、离线提示；`sw.js` 的 `ASSETS` 由构建注入 |
+| 启动加载 | `src/scenes/BootScene.ts` | 图集预载、读档、`scene.start('game')` |
+| 地图/玩家/交互 | `src/scenes/GameScene.ts` | 地图绘制、`isBlockedTile()`、`doAction()`、移动/相机/自动存档 |
+| HUD 与摇杆 | `src/scenes/UIScene.ts` | HUD、摇杆、动作键、提示条、相机安全区；**面板已拆到 `ui/panels/`** |
+| 面板骨架 | `src/ui/widgets.ts` | `makePanel()` / `textButton()` / `label()` / `uiScale()`，**一律收 CSS 像素** |
+| 摇杆 | `src/ui/joystick.ts` | 虚拟摇杆 |
+| 字体 | `src/ui/font.ts` | `UI_FONT` / `UI_FONT_MONO` / `FONT_SCALE` / `fs()` / `waitPixelFont()` |
+| 复制兜底 | `src/ui/copySheet.ts` | 剪贴板被系统拦下时的 DOM 手动复制面板 |
+
+### core 纯逻辑（不 import Phaser，全部可单测）
+
+| 域 | 文件 | 关键导出 |
+|---|---|---|
+| 世界与坐标 | `core/world.ts` | `createWorld()`、`plotAt()`、`farmCoord()`、`clockText()`、`seasonOf()` |
+| 常量 | `core/config.ts` | 地图尺寸、时间流速、体力、`SAVE_FMT`、`PICKAXE/ORE/TREE` 常量 |
+| 内容数据 | `core/data.ts` | 见下方「数据表速查」 |
+| 玩家动作 | `core/actions.ts` | `doHoe` / `doWater` / `doPlant` / `doHarvest` / `doClear` / `spendEnergy` |
+| 日循环 | `core/daycycle.ts` | `endDay()`（含集市日提示）、`advanceCrops()`、`applyRain()` |
+| 林区 | `core/forest.ts` | `treeAt()`、`chopTree()` |
+| 矿脉 | `core/mine.ts` | `oreAt()`、`canMine()`（三道门槛）、`mineOre()`、`refreshOres()` |
+| 装饰 | `core/decor.ts` | `decorAt()`、`canPlaceDecor()`、`placeDecor()`、`removeDecor()`、`decorBlocks()`、`buyDecor()` |
+| 经济 | `core/economy.ts` | `buySeed` / `sellCrop` / `sellOre` / `craft` / `buyToolUpgrade` / `countItem` / `addItem` / `removeItem` / 各类 `*Entries()` |
+| 集市日 | `core/market.ts` | `isMarketDay()`、`sellMultiplier()`、`marketTip()` |
+| 农场评价 | `core/rating.ts` | `rating()` / `ratingDetail()` / `ratingSummary()`、权重与封顶常量 |
+| 研究 | `core/research.ts` | `canResearch()` / `researchItem()` / `redeemKnowledge()` / `researchableEntries()` |
+| 工具耐久 | `core/tools.ts` | `toolDur()` / `toolUsable()` / `damageTool()` / `restoreTool()` / `toolRatio()` |
+| NPC | `core/npc.ts` | `npcDef()` / `talk()` / `giveGift()` / `tierOf()` / `tierName()` / `checkRewards()` |
+| 存档 | `core/save.ts` | `normalizeWorld()`（逐字段登记）、`migrateFrom()`、`serialize/deserialize`、`exportSave/importSave` |
+| 存储 | `core/storage.ts` | `loadSaveJson()` / `writeSaveJson()`（IndexedDB → localStorage 降级）、`loadSettings()` / `saveSettings()` |
+| 音效 | `core/audio.ts` | `SFX.*`、`unlockAudio()`、`setSfxEnabled()` |
+| 诊断 | `src/dev/envDiag.ts` | `collectEnvDiag()`、`copyText()`（三条复制路线） |
+
+### 面板文件（`src/ui/panels/`）
+
+| 文件 | 内容 |
+|---|---|
+| `envDiagPanel.ts` | 环境诊断（数值列表 + 复制按钮） |
+| `inventoryPanel.ts` | 物品栏（种子/材料/作物/工具两列） |
+| `quickbarPanel.ts` | 快捷栏三页签（种子/道具/装饰） |
+| `shopPanel.ts` | 杂货铺四页签（买种子/出售/工具/装饰） |
+| `craftingPanel.ts` | 制作台三页签（配方/研究/兑换） |
+| `dayPanels.ts` | 晨报、睡觉确认 |
+| `dialogPanels.ts` | NPC 对话、送礼选择器 |
+| `systemPanel.ts` | 系统菜单（导出/导入、音效、入口、统计行） |
+
+### 数据表速查（**改数值先找这里**，别去场景里硬写）
+
+| 表 | 位置 | 内容 |
+|---|---|---|
+| `CROPS` | `core/data.ts` | 作物（季节/天数/种子价/卖价/图标帧） |
+| `QUALITY` / `DAILY_SEED_DISCOUNT` | 同上 | 品质倍率、每日特价 |
+| `NPCS` | 同上 | NPC 站位、最爱礼物、里程碑、三档台词 |
+| `TREE_SPOTS` / `ORE_SPOTS` | 同上 | 固定树点 / 固定矿脉点 |
+| `DECORS` | 同上 | 装饰（名称/价格/是否挡路/帧名） |
+| `RECIPES` / `TOOL_UPGRADES` | 同上 | 制作配方、商店工具升级 |
+| `TOOLS` | 同上 | 带耐久的工具（`maxDur`），加新工具只加一行 |
+| `ORE_SELL` | 同上 | 矿石收购价 |
+| `RESEARCH_POINTS` / `RESEARCH_CROP_POINTS` | 同上 | 研究一件物品给多少知识点 |
+| `KNOWLEDGE_SHOP` | 同上 | 知识点能换什么（工具升级 / 体力上限） |
+
+> 生成物帧索引（`core/generated/tiles.frames.ts`、`ui.frames.ts`）**不是手写数据**，
+> 要改请改 `tools/gen_assets.py` 后重跑 `npm run assets`。
+
 ## 2. 命令
 
 ```bash
