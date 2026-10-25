@@ -74,7 +74,8 @@ node tools/live-check.mjs https://example.com/
 | [游戏设定](dev-docs/GAME_DESIGN.md) | 作物 / 经济 / 体力 / NPC 数值 |
 | [技术细节](dev-docs/TECH_NOTES.md) | 屏幕适配、安全区、PWA、触控坑的推理过程 |
 | [更新记录](CHANGELOG.md) | 版本与 build 历史 |
-| [GitHub Pages](dev-docs/GITHUB_PAGES.md) | 部署步骤（GitHub Actions） |
+| [GitHub Pages](dev-docs/GITHUB_PAGES.md) | 本项目的部署步骤（GitHub Actions） |
+| [CI 部署通用手册](dev-docs/CI_DEPLOY_GUIDE.md) | 把「产物入库 + 分支部署」改成「CI 构建 + Actions 部署」的可复用步骤与 workflow 模板 |
 | [TODO](TODO.md) | 待办与建议更新项（优先级 / 成本 / 验收） |
 
 ## 目录结构

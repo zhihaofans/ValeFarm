@@ -245,6 +245,6 @@ UIScene 相机必须同时满足：尺寸 = 整块画布、`zoom = 1`、`origin 
 - 新增/修改数据表 → 更新 §4 的「改这里」映射。
 - 新增系统（如研究点、集市日、工具耐久）→ 更新 [GAME_DESIGN.md](dev-docs/GAME_DESIGN.md) 对应小节 + [CHANGELOG.md](CHANGELOG.md)。
 - 踩到新的"静默失败"类坑 → 补进 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md) §5 踩坑清单与本文件 §9.1。
-- 改发布流程 → 同步 [GITHUB_PAGES.md](dev-docs/GITHUB_PAGES.md)。
+- 改发布流程 → 同步 [GITHUB_PAGES.md](dev-docs/GITHUB_PAGES.md)；通用做法/模板改动同步 [CI_DEPLOY_GUIDE.md](dev-docs/CI_DEPLOY_GUIDE.md)。
 - 本文件与代码冲突时**以代码为准，并立即修正本文件**。
 - 文件名约定：本仓库是 `AGENTS.md`；若工作区里只有 `AGENT.md`（单数）也等价 —— **工作区里存在哪个就优先遵循哪个**。
