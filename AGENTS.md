@@ -1,6 +1,6 @@
 # AGENTS.md · 微光农庄 Vale Farm
 
-> 本文件面向 AI 编码代理（DSH 会在会话开始时自动加载）。人类交接文档见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)；这里只放硬约束、最短路径和验证方式，不复制整本手册。
+> 本文件面向 AI 编码代理：**开工前先读它**。人类交接文档见 [DEV_HANDOVER.md](dev-docs/DEV_HANDOVER.md)；这里只放硬约束、最短路径和验证方式，不复制整本手册。
 >
 > **仓库内一律使用相对路径。个人隐私不得写入或提交**：本机绝对路径、私人账号、密码/令牌、手机号、私人邮箱、设备标识等。公开项目信息（GitHub 仓库、GitHub Pages、项目用户名）可以保留。
 

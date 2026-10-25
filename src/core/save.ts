@@ -308,6 +308,9 @@ export function exportSave(w: World): string {
 export function importSave(text: string): World | null {
   try {
     const raw = JSON.parse(text);
+    // 带包装的存档必须是我们自己的：别的游戏的 JSON 也能被 normalize 兜住，
+    // 那样会静默变成"一个全新的空农场"，用户会以为存档丢了。宁可明确拒绝。
+    if (isObj(raw) && typeof raw.app === 'string' && raw.app !== 'vale-farm') return null;
     const data = isObj(raw) && isObj(raw.data) ? raw.data : raw;
     return normalizeWorld(data);
   } catch {

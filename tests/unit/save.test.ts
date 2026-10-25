@@ -231,6 +231,14 @@ describe('导出 / 导入', () => {
     expect(back.inventory['crop:pumpkin:sil']).toBe(4);
   });
 
+  it('别的游戏的存档（app 不是 vale-farm）一律拒绝，不静默变成空农场', () => {
+    const foreign = JSON.stringify({ app: 'another-game', fmt: 11, data: { day: 9, gold: 500 } });
+    expect(importSave(foreign)).toBeNull();
+    // 旧版裸 World 没有 app 字段 → 仍按原逻辑接收
+    const bare = JSON.stringify({ day: 4, gold: 20 });
+    expect(importSave(bare)?.day).toBe(4);
+  });
+
   it('导入裸 World（旧版手工备份）也能识别', () => {
     const w = createWorld();
     w.day = 3;
