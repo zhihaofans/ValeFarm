@@ -5,7 +5,7 @@
 
 import type Phaser from 'phaser';
 import { CROPS, CROP_ORDER, itemName, toolMaxDur } from '../../core/data';
-import { countItem, cropEntries, oreEntries } from '../../core/economy';
+import { countItem, cropEntries, matEntries, oreEntries } from '../../core/economy';
 import { toolDur } from '../../core/tools';
 import type { World } from '../../core/types';
 import { label, makePanel, type Panel } from '../widgets';
@@ -31,6 +31,8 @@ export function buildInventoryPanel(deps: InventoryPanelDeps): Panel {
 
   const materialLines = [`木头 ×${countItem(w.inventory, 'wood')}`];
   for (const e of oreEntries(w.inventory)) materialLines.push(`${itemName(e.id)} ×${e.n}`);
+  // 加工品（D1）：和原料同列，玩家一眼能看出"该不该再加工"
+  for (const e of matEntries(w.inventory)) materialLines.push(`${itemName(e.id)} ×${e.n}`);
 
   const toolLines: string[] = [];
   toolLines.push(w.toolCan === 2 ? '铜洒水壶（3 格浇水）' : '旧洒水壶');
@@ -56,7 +58,7 @@ export function buildInventoryPanel(deps: InventoryPanelDeps): Panel {
 
   let leftY = 24;
   leftY = drawBlock(-270, leftY, '种子', seedLines, 6);
-  leftY = drawBlock(-270, leftY, '材料', materialLines, 4);
+  leftY = drawBlock(-270, leftY, '材料', materialLines, 5);
   let rightY = 24;
   rightY = drawBlock(10, rightY, '作物', cropLines, 6);
   rightY = drawBlock(10, rightY, '工具', toolLines, 8);

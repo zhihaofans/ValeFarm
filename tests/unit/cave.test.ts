@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ENERGY, ORE_HP } from '../../src/core/config';
+import { ENERGY, ORE_HP, SAVE_FMT } from '../../src/core/config';
 import { toolMaxDur } from '../../src/core/data';
 import {
   CAVE_ORE_SPOTS, CAVE_SPAWN, caveOreAt, enterCave, exitCave, inCaveMap,
@@ -73,7 +73,7 @@ describe('矿洞 B1', () => {
 
   it('旧档（fmt6）默认回农场并补矿洞', () => {
     const w = deserialize(JSON.stringify({ fmt: 6, day: 3, playerX: 5, playerY: 6 }))!;
-    expect(w.fmt).toBe(7);
+    expect(w.fmt).toBe(SAVE_FMT);
     expect(w.area).toBe('farm');
     expect(w.cave.ores.length).toBe(CAVE_ORE_SPOTS.length);
   });

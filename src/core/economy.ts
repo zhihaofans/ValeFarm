@@ -1,8 +1,8 @@
 // 经济：背包操作、商店买卖、工具升级。
 
 import {
-  CROPS, CROP_ORDER, DECORS, ORE_IDS, ORE_SELL, QUALITY, RECIPES,
-  dailySeedSpecial, itemName, sellPrice, toolMaxDur, TOOL_UPGRADES,
+  CROPS, CROP_ORDER, DECORS, MAT_IDS, ORE_IDS, ORE_SELL, PROCESSES, PROCESS_SELL,
+  QUALITY, RECIPES, dailySeedSpecial, itemName, sellPrice, toolMaxDur, TOOL_UPGRADES,
 } from './data';
 import { sellMultiplier } from './market';
 import type { CropId, Inventory, Quality, Season, World } from './types';
@@ -166,6 +166,59 @@ export function sellAllOres(w: World): { gold: number; count: number } {
   let gold = 0, count = 0;
   for (const e of oreEntries(w.inventory)) {
     const r = sellOre(w, e.id, e.n);
+    gold += r.gold;
+    count += e.n;
+  }
+  return { gold, count };
+}
+
+// ---------------------------------------------------------------- 加工（D1）
+
+/**
+ * 制作台「加工」页：按加工配方扣材料、产出半成品。
+ * 与 `craft()` 的区别：产物可堆叠，所以不检查"工具只能有一把"那条规则。
+ */
+export function processItem(w: World, processId: string): { ok: boolean; text: string } {
+  const def = PROCESSES.find((p) => p.id === processId);
+  if (!def) return { ok: false, text: '没有这个加工配方' };
+  for (const [id, n] of Object.entries(def.cost)) {
+    if (countItem(w.inventory, id) < n) {
+      return { ok: false, text: `材料不够：${itemName(id)} 需要 ${n}` };
+    }
+  }
+  for (const [id, n] of Object.entries(def.cost)) removeItem(w.inventory, id, n);
+  addItem(w.inventory, def.result, def.out);
+  return { ok: true, text: `做出 ${def.out} 个${def.name}` };
+}
+
+/** 背包里的加工品（按固定顺序，便于 UI 稳定排版） */
+export function matEntries(inv: Inventory): Array<{ id: string; n: number; unit: number }> {
+  const out: Array<{ id: string; n: number; unit: number }> = [];
+  for (const id of MAT_IDS) {
+    const n = countItem(inv, id);
+    if (n > 0) out.push({ id, n, unit: PROCESS_SELL[id] });
+  }
+  return out;
+}
+
+export function sellMat(w: World, id: string, n: number): { ok: boolean; text: string; gold: number } {
+  const unit = PROCESS_SELL[id];
+  if (!unit) return { ok: false, text: '杂货铺不收这个', gold: 0 };
+  const have = countItem(w.inventory, id);
+  const m = Math.min(have, n);
+  if (m <= 0) return { ok: false, text: '没有这件加工品', gold: 0 };
+  const gold = Math.round(unit * sellMultiplier(w)) * m;
+  removeItem(w.inventory, id, m);
+  w.gold += gold;
+  w.stats.earned += gold;
+  return { ok: true, text: `卖出 ${m} 个${itemName(id)}，+${gold} 金币`, gold };
+}
+
+/** 一次卖掉背包里所有加工品 */
+export function sellAllMats(w: World): { gold: number; count: number } {
+  let gold = 0, count = 0;
+  for (const e of matEntries(w.inventory)) {
+    const r = sellMat(w, e.id, e.n);
     gold += r.gold;
     count += e.n;
   }

@@ -64,7 +64,7 @@ function normalizeInventory(raw: unknown): Inventory {
   if (!isObj(raw)) return inv;
   for (const k of Object.keys(raw)) {
     const n = int(raw[k], 0);
-    if (n > 0 && /^(seed:(radish|pea|corn|pumpkin|strawberry|sweetpotato)|crop:(radish|pea|corn|pumpkin|strawberry|sweetpotato):(norm|sil|gold)|tool:(can2|hoe2|pickaxe)|wood|ore:(copper|iron)|decor:(flowerpot|mailbox|fence|rug|stonelantern|scarecrow))$/.test(k)) {
+    if (n > 0 && /^(seed:(radish|pea|corn|pumpkin|strawberry|sweetpotato)|crop:(radish|pea|corn|pumpkin|strawberry|sweetpotato):(norm|sil|gold)|tool:(can2|hoe2|pickaxe)|wood|ore:(copper|iron)|mat:(plank|ingot)|decor:(flowerpot|mailbox|fence|rug|stonelantern|scarecrow))$/.test(k)) {
       inv[k] = n;
     }
   }
@@ -221,6 +221,10 @@ function migrateFrom(raw: Obj, fmt: number): { data: Obj; fmt: number } {
   // v6 → v7：新增矿洞区域（World.area / World.cave）。
   // 旧档默认回农场；cave 由 normalizeCave() 按固定点位补满。
   if (f < 7) f = 7;
+  // v7 → v8：新增加工品（mat:plank 木板 / mat:ingot 金属锭）。
+  // 只是背包键扩容，World 结构没变：旧档没有这两个键就是 0 个，这里只推格式号。
+  // 键的放行在 normalizeInventory 的白名单里 —— 忘了改那里，加工品会在读档时被静默丢弃。
+  if (f < 8) f = 8;
   return { data, fmt: f };
 }
 

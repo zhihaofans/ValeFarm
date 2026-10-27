@@ -58,7 +58,7 @@
 | 林区 | `core/forest.ts` | `treeAt()`、`chopTree()` |
 | 矿脉 | `core/mine.ts` | `oreAt()`、`canMine()`（三道门槛）、`mineOre()`、`refreshOres()` |
 | 装饰 | `core/decor.ts` | `decorAt()`、`canPlaceDecor()`、`placeDecor()`、`removeDecor()`、`decorBlocks()`、`buyDecor()` |
-| 经济 | `core/economy.ts` | `buySeed` / `sellCrop` / `sellOre` / `craft` / `buyToolUpgrade` / `countItem` / `addItem` / `removeItem` / 各类 `*Entries()` |
+| 经济 | `core/economy.ts` | `buySeed` / `sellCrop` / `sellOre` / `sellMat` / `craft` / `processItem` / `buyToolUpgrade` / `countItem` / `addItem` / `removeItem` / 各类 `*Entries()` |
 | 集市日 | `core/market.ts` | `isMarketDay()`、`sellMultiplier()`、`marketTip()` |
 | 农场评价 | `core/rating.ts` | `rating()` / `ratingDetail()` / `ratingSummary()`、权重与封顶常量 |
 | 研究 | `core/research.ts` | `canResearch()` / `researchItem()` / `redeemKnowledge()` / `researchableEntries()` |
@@ -77,7 +77,7 @@
 | `inventoryPanel.ts` | 物品栏（种子/材料/作物/工具两列） |
 | `quickbarPanel.ts` | 快捷栏三页签（种子/道具/装饰） |
 | `shopPanel.ts` | 杂货铺四页签（买种子/出售/工具/装饰） |
-| `craftingPanel.ts` | 制作台三页签（配方/研究/兑换） |
+| `craftingPanel.ts` | 制作台四页签（配方/加工/研究/兑换） |
 | `dayPanels.ts` | 晨报、睡觉确认 |
 | `dialogPanels.ts` | NPC 对话、送礼选择器 |
 | `systemPanel.ts` | 系统菜单（导出/导入、音效、入口、统计行） |
@@ -92,6 +92,7 @@
 | `TREE_SPOTS` / `ORE_SPOTS` | 同上 | 固定树点 / 固定矿脉点 |
 | `DECORS` | 同上 | 装饰（名称/价格/是否挡路/帧名） |
 | `RECIPES` / `TOOL_UPGRADES` | 同上 | 制作配方、商店工具升级 |
+| `PROCESSES` / `PROCESS_SELL` | 同上 | 加工链（木板 / 金属锭）、加工品收购价 |
 | `TOOLS` | 同上 | 带耐久的工具（`maxDur`），加新工具只加一行 |
 | `ORE_SELL` | 同上 | 矿石收购价 |
 | `RESEARCH_POINTS` / `RESEARCH_CROP_POINTS` | 同上 | 研究一件物品给多少知识点 |
@@ -147,7 +148,7 @@ UIScene 相机必须同时满足：尺寸 = 整块画布、`zoom = 1`、`origin 
 同时补“写入 → reload → 逐字段（含嵌套）比对”的测试。漏登记不会报错，只会静默丢档。
 
 > 判断标准：**新字段能在旧档上补齐、能在新档上往返、脏值被夹住** —— 三条都要有用例，
-> 参考 `tests/unit/migrate.test.ts`（按 v1~v5 每一代旧档形态各写一条）。
+> 参考 `tests/unit/migrate.test.ts`（按 v1~v8 每一代旧档形态各写一条）。
 
 ### 3.5 生成物与版本
 
@@ -164,6 +165,7 @@ UIScene 相机必须同时满足：尺寸 = 整块画布、`zoom = 1`、`origin 
 | 加 NPC / 改对话 | [data.ts](src/core/data.ts)、[npc.ts](src/core/npc.ts) |
 | 改集市/评价数值 | [market.ts](src/core/market.ts)（周期与加成）、[rating.ts](src/core/rating.ts)（权重与档位） |
 | 加装饰 / 改价格 | [data.ts](src/core/data.ts) 的 `DECORS` + [gen_assets.py](tools/gen_assets.py) 的 `ornament_*_tile()` + [decor.ts](src/core/decor.ts) |
+| 加加工配方 / 调加工价 | [data.ts](src/core/data.ts) 的 `PROCESSES`（配方）+ `PROCESS_SELL`（价）+ `RESEARCH_POINTS`（研究点）；**新物品 id 必须同步 [save.ts](src/core/save.ts) 的 `normalizeInventory` 白名单并 +`SAVE_FMT`** |
 | 加带耐久的工具 | [data.ts](src/core/data.ts) 的 `TOOLS`（写 `maxDur`）+ [tools.ts](src/core/tools.ts)，无需改存档结构 |
 | 改矿脉点位 / 挖矿产出 | [data.ts](src/core/data.ts) 的 `ORE_SPOTS`/`ORE_SELL`、[mine.ts](src/core/mine.ts)、[config.ts](src/core/config.ts) 的 `ORE_*` |
 | 改 UI 布局 / 面板 | [UIScene.ts](src/scenes/UIScene.ts)，尺寸统一走 [widgets.ts](src/ui/widgets.ts) |

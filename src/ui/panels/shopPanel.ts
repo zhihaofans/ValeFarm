@@ -12,7 +12,7 @@ import {
 } from '../../core/data';
 import {
   buySeed, buyToolUpgrade, countItem, cropEntries, oreEntries,
-  seasonSeeds, sellAllCrops, sellAllOres, sellCrop, sellOre,
+  seasonSeeds, sellAllCrops, sellAllOres, sellCrop, sellOre, matEntries, sellMat,
 } from '../../core/economy';
 import { buyDecor } from '../../core/decor';
 import { marketTip, sellMultiplier } from '../../core/market';
@@ -81,6 +81,7 @@ export function buildShopPanel(deps: ShopPanelDeps): Panel {
   const renderSellTab = (): void => {
     const entries = cropEntries(w.inventory);
     const ores = oreEntries(w.inventory);
+    const mats = matEntries(w.inventory);
     let y = 44;
 
     // 集市日把倍率写在最上面：玩家一眼知道要不要"攒到今天卖"
@@ -91,7 +92,7 @@ export function buildShopPanel(deps: ShopPanelDeps): Panel {
         { size: 14, color: '#f2e06a' }));
       y += 26;
     }
-    if (entries.length === 0 && ores.length === 0) {
+    if (entries.length === 0 && ores.length === 0 && mats.length === 0) {
       panel.body.add(label(s, -260, y + 30, '背包里没有可出售的东西。先去田里收获，或去林区挖矿。'));
     }
 
@@ -128,6 +129,17 @@ export function buildShopPanel(deps: ShopPanelDeps): Panel {
           render();
         }, { fontSize: 15 }),
       ]);
+      y += 46;
+    }
+
+    // 加工品（D1）：单独一行，不和"矿石全卖"混在一起，避免顺手卖掉做工具的材料
+    for (const e of mats) {
+      panel.body.add(label(s, -270, y + 20, `${itemName(e.id)} × ${e.n}   单价 ${e.unit}G`, { color: '#e8d6b8' }));
+      panel.body.add(textButton(s, 254, y + 24, 70, 34, '全卖', () => {
+        const r = sellMat(w, e.id, e.n);
+        deps.toast(r.text); if (r.ok) SFX.coin();
+        render();
+      }, { fontSize: 15 }));
       y += 46;
     }
 

@@ -7,7 +7,7 @@ import type Phaser from 'phaser';
 import { SEASON_DAYS, SEASON_NAMES } from '../../core/config';
 import type { World } from '../../core/types';
 import { dayOfSeason, seasonOf } from '../../core/world';
-import { label, makePanel, textButton, type Panel } from '../widgets';
+import { label, makePanel, textButton, uiScale, type Panel } from '../widgets';
 
 export interface SleepConfirmDeps {
   scene: Phaser.Scene;
@@ -55,15 +55,29 @@ export function buildDayReportPanel(deps: DayReportDeps): Panel {
     () => deps.onClose(),
   );
 
+  const S = uiScale(s);
+  // 竖屏面板只有 ~336 CSS 宽（body 整体等比缩放），一句 30+ 字的正文会换成两行。
+  // 所以：① 窄屏用 16 号字；② 行距按**上一条的实际高度**累加 —— 以前写死 34，
+  // 换行那条（两行高约 48）就会把第二行压到下一句上，第 1 天的欢迎语最容易踩到。
+  const narrow = s.scale.width / S < 480;
+  const size = narrow ? 16 : 17;
+  const gap = narrow ? 8 : 10;
+  const bodyH = panel.h - 44;
+
   let y = 40;
   for (const l of lines) {
-    panel.body.add(label(s, -270, y, `· ${l}`, { size: 17 }));
-    y += 34;
+    // 符号单独占一列：正文用更窄的 wrap（550 - 24），否则长句会从符号右边伸到面板外。
+    panel.body.add(label(s, -272, y, '·', { size }));
+    const t = label(s, -252, y, l, { size, wrap: 560 });
+    panel.body.add(t);
+    y += t.height / S + gap;
   }
 
   // 晨报只负责“看 + 开始新的一天”。横屏按钮属于竖屏建议卡片，
   // 不再塞进每天的晨报——横屏玩家看到它只会莫名其妙。
-  panel.body.add(textButton(s, 0, y + 60, 220, 46, '开始新的一天', () => {
+  // 位置夹在正文高度内：欢迎语较长时按钮不能掉到面板外。
+  const btnY = Math.min(y + 40, bodyH - 40);
+  panel.body.add(textButton(s, 0, btnY, 220, 46, '开始新的一天', () => {
     panel.close();
     deps.onClose();
   }, { bg: 0x3f7d5a, fontSize: 18 }));

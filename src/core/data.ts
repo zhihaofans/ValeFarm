@@ -162,6 +162,56 @@ export const RECIPES: RecipeDef[] = [
   },
 ];
 
+// ---------------------------------------------------------------- 加工（原料 → 半成品）
+
+/**
+ * 加工链（D1 最小版）：把原料变成更值钱的半成品。
+ *
+ * v1 只有两条链，`station` 仅用于 UI 分组显示 —— **没有建造门槛、不新增存档字段**；
+ * 真正的"工作台/熔炉要造出来才能用"留给二期（会牵动 World 结构）。
+ */
+export interface ProcessDef {
+  id: string;
+  name: string;
+  desc: string;
+  /** 站点标签（仅 UI 分组） */
+  station: string;
+  /** itemId → 数量 */
+  cost: Record<string, number>;
+  result: string;
+  /** 一次产出几个 */
+  out: number;
+}
+
+export const PROCESSES: ProcessDef[] = [
+  {
+    id: 'proc:plank',
+    name: '木板',
+    desc: '木头 ×2 → 木板 ×1',
+    station: '工作台',
+    cost: { wood: 2 },
+    result: 'mat:plank',
+    out: 1,
+  },
+  {
+    id: 'proc:ingot',
+    name: '金属锭',
+    desc: '铜矿石 ×2 + 木头 ×1 → 金属锭 ×1',
+    station: '熔炉',
+    cost: { 'ore:copper': 2, wood: 1 },
+    result: 'mat:ingot',
+    out: 1,
+  },
+];
+
+/** 加工品收购价（商店出售页）。定价原则：高于原料合计，让"加工再卖"有溢价 */
+export const PROCESS_SELL: Record<string, number> = {
+  'mat:plank': 12,   // 木头 ×2，木头本身无售价
+  'mat:ingot': 55,   // 铜矿石 ×2（44G）+ 木头 ×1
+};
+
+export const MAT_IDS = ['mat:plank', 'mat:ingot'] as const;
+
 // ---------------------------------------------------------------- 研究（知识点）
 
 /**
@@ -173,6 +223,9 @@ export const RESEARCH_POINTS: Record<string, number> = {
   wood: 1,
   'ore:copper': 3,
   'ore:iron': 6,
+  // 加工品：必须比原料合计更高，否则"加工再研究"永远不如"直接研究原料"（D1）
+  'mat:plank': 3,
+  'mat:ingot': 8,
 };
 
 /** 作物按品质给分（键是品质） */
@@ -269,6 +322,8 @@ export function decorDef(id: string): DecorDef | undefined {
 /** 背包/制作台展示名 */
 export function itemName(id: string): string {
   if (id === 'wood') return '木头';
+  if (id === 'mat:plank') return '木板';
+  if (id === 'mat:ingot') return '金属锭';
   if (id === 'tool:pickaxe') return '木镐子';
   if (id === 'tool:can2') return '铜洒水壶';
   if (id === 'tool:hoe2') return '铜锄头';

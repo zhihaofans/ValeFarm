@@ -208,14 +208,25 @@ export function makePanel(scene: Phaser.Scene, title: string, onClose?: () => vo
 /** 面板正文可用高度（旧常量，保留给老代码；新代码请用 panel.h - 44） */
 export const PANEL_BODY_H = 360 - 44;
 
-export function label(scene: Phaser.Scene, x: number, y: number, text: string, opts: { size?: number; color?: string; bold?: boolean } = {}): Phaser.GameObjects.Text {
+export function label(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  text: string,
+  opts: { size?: number; color?: string; bold?: boolean; wrap?: number } = {},
+): Phaser.GameObjects.Text {
   const S = uiScale(scene);
+  // 换行宽度默认 550 CSS（640 宽面板去掉边距）；需要「项目符号单独占一列」这类排版时，
+  // 调用方传更窄的 wrap，避免正文冲过面板右边缘。
+  const wrapCss = opts.wrap ?? 640 - 90;
   return scene.add.text(x * S, y * S, text, {
     fontSize: `${Math.round(fs(opts.size ?? 17) * S)}px`,
     color: opts.color ?? '#e8e4dc',
     fontFamily: UI_FONT,
     fontStyle: opts.bold ? 'bold' : 'normal',
-    wordWrap: { width: (640 - 90) * S },
+    // 中文没有空格：Phaser 默认按空格断行，会把整句推到下一行（只留一个孤零零的「·」）。
+    // 用 advanced wrap 按字符断行，中文长句才会在面板宽度内正常折行。
+    wordWrap: { width: wrapCss * S, useAdvancedWrap: true },
     lineSpacing: 6 * S,
   });
 }

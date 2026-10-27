@@ -9,6 +9,7 @@
 //   v5：+ 工具耐久 toolDur
 //   v6：+ 研究点/解锁
 //   v7：+ 矿洞区域 area/cave
+//   v8：+ 加工品 mat:plank / mat:ingot（只是背包键扩容）
 //
 // 每条都验三件事：① 旧字段原样保留 ② 缺的新字段按规则补默认 ③ fmt 升到当前值。
 
@@ -148,6 +149,23 @@ describe('旧档迁移链', () => {
     expect(w.area).toBe('farm');
     expect(w.cave.depth).toBe(1);
     expect(w.cave.ores.length).toBe(4);
+  });
+
+  it('v7 → 8：矿洞字段保留，加工品能存能读，旧档没有加工品就是 0', () => {
+    const w = normalizeWorld(saveV1({
+      fmt: 7,
+      area: 'cave',
+      inventory: { wood: 5, 'mat:plank': 2 },
+    }));
+    expect(w.fmt).toBe(SAVE_FMT);
+    expect(w.area).toBe('cave');
+    expect(w.cave.depth).toBe(1);
+    // 加工品：白名单放行 + 往返不丢
+    expect(w.inventory['mat:plank']).toBe(2);
+    expect(w.inventory['mat:ingot']).toBeUndefined();
+    const again = deserialize(serialize(w))!;
+    expect(again.inventory['mat:plank']).toBe(2);
+    expect(again.fmt).toBe(SAVE_FMT);
   });
 
   it('迁移是幂等的：normalize → serialize → normalize 结果一致', () => {
